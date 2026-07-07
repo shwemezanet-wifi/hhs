@@ -1,65 +1,60 @@
 import os
-from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+import time
+import threading
+import requests
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import yt_dlp
 
-# အောက်က နေရာမှာ ခုနကရလာတဲ့ API Token ကို အစားထိုးထည့်ပါ
-BOT_TOKEN = "8887542224:AAHv0kM9OoR4SQC3Vikjk-x4arRg-cqMOy8"
+BOT_TOKEN = "8887542224:AAFEfEvHKlH09TBx0nAjuGZ2kOrDy_l_7Ss"
+BASE_URL = f"https://api.telegram-proxy.org/bot{BOT_TOKEN}"
 
-# Premium ID စာရင်း (လောလောဆယ် စမ်းသပ်ဖို့ သင့် ID အစစ်သိရင် ထည့်ထားနိုင်ပါတယ်)
-PREMIUM_USERS = [] 
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Active")
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    url = update.message.text
-    is_premium = user_id in PREMIUM_USERS
+def run_health_check():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
 
-    await update.message.reply_text("ဗီဒီယိုကို စစ်ဆေးနေပါပြီ၊ ခေတ္တစောင့်ပါ။...")
+def send_message(chat_id, text):
+    try: requests.post(f"{BASE_URL}/sendMessage", json={"chat_id": chat_id, "text": text}, timeout=15)
+    except: pass
 
+def download_and_send(chat_id, video_url):
+    send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
     try:
-        with yt_dlp.YoutubeDL() as ydl:
-            info = ydl.extract_info(url, download=False)
-            duration = info.get('duration', 0)
-
-        if not is_premium:
-            if duration > 3600:
-                await update.message.reply_text("❌ ဒီဗီဒီယိုက ၁ နာရီထက် ကျော်နေပါတယ်။ အခမဲ့သမားတွေ ဒေါင်းလို့မရပါ။ Premium ဝယ်ယူပါ။")
-                return
-            
-            ydl_opts = {
-                'format': 'bestvideo[height<=480]+bestaudio/best', 
-                'outtmpl': 'free_video.%(ext)s',
-                'merge_output_format': 'mp4',
-            }
-            await update.message.reply_text("⏳ သင်က အခမဲ့အသုံးပြုသူဖြစ်လို့ 480p ရုပ်ထွက်နဲ့ ဒေါင်းလုဒ်လုပ်ပေးနေပါတယ်...")
-
-        else:
-            ydl_opts = {
-                'format': 'bestvideo+bestaudio/best', 
-                'outtmpl': 'premium_video.%(ext)s',
-                'merge_output_format': 'mp4',
-            }
-            await update.message.reply_text("🚀 သင်က Premium အသုံးပြုသူဖြစ်လို့ အမြင့်ဆုံး Quality နဲ့ ဒေါင်းလုဒ်လုပ်ပေးနေပါတယ်...")
-
+        ydl_opts = {'format': 'best', 'outtmpl': 'video.%(ext)s', 'timeout': 60}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            download_info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(download_info)
-            if not os.path.exists(filename):
-                filename = os.path.splitext(filename)[0] + ".mp4"
+            info = ydl.extract_info(video_url, download=True)
+            filename = ydl.prepare_filename(info)
+        with open(filename, 'rb') as f:
+            requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=100)
+        if os.path.exists(filename): os.remove(filename)
+    except:
+        send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။")
 
-        with open(filename, 'rb') as video_file:
-            await update.message.reply_video(video=video_file, caption="ဒေါင်းလုဒ် အောင်မြင်ပါပြီ။")
-            
-        os.remove(filename)
-
-    except Exception as e:
-        await update.message.reply_text(f"အမှားအယွင်းရှိခဲ့သည်- Link မမှန်ပါ သို့မဟုတ် ဒေါင်းလုဒ်မရနိုင်ပါခင်ဗျာ။")
-
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("Bot စတင်လည်ပတ်ပါပြီ...")
-    app.run_polling()
+def bot_polling():
+    try: requests.get(f"{BASE_URL}/deleteWebhook")
+    except: pass
+    offset = 0
+    while True:
+        try:
+            response = requests.get(f"{BASE_URL}/getUpdates?offset={offset}&timeout=20", timeout=25).json()
+            if response.get("ok") and response.get("result"):
+                for update in response["result"]:
+                    offset = update["update_id"] + 1
+                    if "message" in update and "text" in update["message"]:
+                        chat_id = update["message"]["chat"]["id"]
+                        text = update["message"]["text"]
+                        if text.startswith('/start'):
+                            send_message(chat_id, "👋 ဗီဒီယို Link ပို့ပေးပါ။")
+                        else:
+                            threading.Thread(target=download_and_send, args=(chat_id, text)).start()
+        except: time.sleep(5)
 
 if __name__ == '__main__':
-    main()
+    threading.Thread(target=run_health_check, daemon=True).start()
+    bot_polling()
