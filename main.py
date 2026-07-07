@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import yt_dlp
 
 # သင့်ရဲ့ Bot Token အမှန်
-BOT_TOKEN = "8887542224:AAFEfEvHKlH09TBx0nAjuGZ2kOrDy_l_7Ss"
+BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
 BASE_URL = f"https://api.telegram-proxy.org/bot{BOT_TOKEN}"
 
 # Render အကြိုက် Web Server အပိုင်း
