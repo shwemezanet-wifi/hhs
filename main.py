@@ -33,39 +33,41 @@ def send_message(chat_id, text):
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
     
-    try:
-        # Telegram Bot များအတွက် အထူးပြုလုပ်ထားသော တည်ငြိမ်သည့် ဒေါင်းလုဒ် API
-        api_url = f"https://co.wuk.sh/api/json"
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "url": video_url,
-            "vQuality": "720",
-            "isAudioOnly": False
-        }
-        
-        response = requests.post(api_url, json=payload, headers=headers, timeout=30).json()
-        
-        if "url" in response:
-            download_link = response["url"]
+    # အမြဲတမ်း Update ဖြစ်နေပြီး ပိတ်မသွားနိုင်သော Cobalt Public API များစာရင်း
+    api_endpoints = [
+        "https://cobalt.api.unblockit.pro/api/json",
+        "https://api.cobalt.tools/api/json",
+        "https://cobalt-api.kwiatew.eu/api/json"
+    ]
+    
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "url": video_url,
+        "vQuality": "720"
+    }
+    
+    success = False
+    
+    # ဆာဗာတစ်ခု ပျက်နေပါက နောက်တစ်ခုသို့ Auto ပြောင်းလဲစမ်းသပ်သည့်စနစ်
+    for api_url in api_endpoints:
+        try:
+            response = requests.post(api_url, json=payload, headers=headers, timeout=15).json()
+            if response.get("status") in ["stream", "picker"]:
+                download_link = response.get("url")
+                video_data = requests.get(download_link, timeout=60).content
+                files = {'video': ('video.mp4', video_data, 'video/mp4')}
+                requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
+                success = True
+                break
+        except Exception as e:
+            print(f"Failed endpoint {api_url}: {e}", flush=True)
+            continue
             
-            # ဗီဒီယိုဖိုင်ကို API ထံမှ လှမ်းဆွဲခြင်း
-            video_data = requests.get(download_link, timeout=60).content
-            
-            # Telegram သို့ တိုက်ရိုက် ပို့ဆောင်ခြင်း
-            files = {'video': ('video.mp4', video_data, 'video/mp4')}
-            requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
-            
-        elif response.get("status") == "error":
-            send_message(chat_id, f"❌ ဒေါင်းလုဒ်လုပ်၍မရပါ။ အကြောင်းရင်း: {response.get('text', 'လင့်ခ်မှားယွင်းနေပါသည်')}")
-        else:
-            send_message(chat_id, "❌ ဗီဒီယိုကို ရှာမတွေ့ပါ။ လင့်ခ်အမှန် ဖြစ်ရပါမည်။")
-            
-    except Exception as e:
-        print(f"API Error: {e}", flush=True)
-        send_message(chat_id, "❌ ဆာဗာမှ တုံ့ပြန်မှု မရှိပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
+    if not success:
+        send_message(chat_id, "❌ ဗီဒီယိုကို ဒေါင်းလုဒ်ဆွဲ၍မရပါ။ လင့်ခ်မှားယွင်းနေခြင်း သို့မဟုတ် ဆာဗာများ အားလုံးမအားသေးခြင်း ဖြစ်နိုင်ပါသည်။")
 
 def bot_polling():
     print("🚀 BOT POLLING STARTED SUCCESSFULLY...", flush=True)
