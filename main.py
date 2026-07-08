@@ -4,6 +4,7 @@ import time
 import threading
 import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import yt_dlp
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -32,30 +33,42 @@ def send_message(chat_id, text):
 
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
+    
+    # ဖိုင်သိမ်းမည့် နာမည်သတ်မှတ်ခြင်း
+    filename = f"video_{chat_id}_{int(time.time())}.mp4"
+    
+    # YouTube တံတိုင်းကျော်ရန် ပုံသေ Token များ သုံးစွဲခြင်း
+    ydl_opts = {
+        'format': 'best[ext=mp4]/best', 
+        'outtmpl': filename, 
+        'timeout': 60,
+        'nocheckcertificate': True,
+        'quiet': True,
+        # YouTube Bot Block ကို ကျော်ဖြတ်ရန် တိုက်ရိုက်ခိုင်းစေချက်
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web'],
+                'skip': ['dash', 'hls']
+            }
+        }
+    }
+
     try:
-        api_url = "https://api.cobalt.tools/api/json"
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "url": video_url,
-            "vQuality": "720"
-        }
-        response = requests.post(api_url, json=payload, headers=headers, timeout=30).json()
-        
-        if response.get("status") in ["stream", "picker"]:
-            download_link = response.get("url")
-            video_data = requests.get(download_link, timeout=60).content
-            files = {'video': ('video.mp4', video_data, 'video/mp4')}
-            requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
-        elif response.get("status") == "error":
-            send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ လင့်ခ် မှန်ကန်မှု ရှိမရှိ ပြန်စစ်ပေးပါ။")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+            
+        if os.path.exists(filename):
+            with open(filename, 'rb') as f:
+                requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=120)
+            os.remove(filename)
         else:
-            send_message(chat_id, "❌ ဗီဒီယိုကို ရှာမတွေ့ပါ။ နောက်တစ်ကြိမ် ပြန်စမ်းကြည့်ပါ။")
+            send_message(chat_id, "❌ ဗီဒီယိုကို ဒေါင်းလုဒ်ဆွဲမရပါ။ လင့်ခ် ပြန်စစ်ပေးပါ။")
+            
     except Exception as e:
-        print(f"API Error: {e}", flush=True)
-        send_message(chat_id, "❌ ဆာဗာ ယာယီ မအားသေးပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
+        print(f"Download Error: {e}", flush=True)
+        send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
+        if os.path.exists(filename):
+            os.remove(filename)
 
 def bot_polling():
     print("🚀 BOT POLLING STARTED SUCCESSFULLY...", flush=True)
@@ -86,3 +99,4 @@ if __name__ == '__main__':
     
     threading.Thread(target=run_health_check, daemon=True).start()
     bot_polling()
+
