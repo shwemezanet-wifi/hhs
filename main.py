@@ -6,7 +6,6 @@ import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import yt_dlp
 
-# Log များ ချက်ချင်းထွက်လာစေရန် အတင်းခိုင်းခြင်း
 sys.stdout.reconfigure(line_buffering=True)
 
 BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
@@ -32,16 +31,30 @@ def send_message(chat_id, text):
 
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
+    
+    # YouTube Link ဖြစ်ခဲ့ရင် YouTube တံတိုင်းကျော်မည့် proxy လမ်းကြောင်း ပြောင်းပေးခြင်း
+    if "youtube.com" in video_url or "youtu.be" in video_url:
+        video_url = video_url.replace("youtube.com", "yewtu.be").replace("youtu.be", "yewtu.be")
+
     try:
-        ydl_opts = {'format': 'best', 'outtmpl': 'video.%(ext)s', 'timeout': 60}
+        # ကွတ်ကီး မလိုဘဲ bypass လုပ်မည့် extractor settings များ
+        ydl_opts = {
+            'format': 'best', 
+            'outtmpl': 'video.%(ext)s', 
+            'timeout': 60,
+            'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
+            'nocheckcertificate': True,
+            'quiet': True
+        }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
             filename = ydl.prepare_filename(info)
         with open(filename, 'rb') as f:
             requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=90)
         if os.path.exists(filename): os.remove(filename)
-    except:
-        send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။")
+    except Exception as e:
+        print(f"Download error: {e}", flush=True)
+        send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ (ဆာဗာ ယာယီမအားသေးပါ)")
 
 def bot_polling():
     print("🚀 BOT POLLING STARTED SUCCESSFULLY...", flush=True)
@@ -65,7 +78,6 @@ def bot_polling():
             time.sleep(5)
 
 if __name__ == '__main__':
-    # Webhook လမ်းကြောင်းဟောင်းကို အရင်ဖျက်ထုတ်ခြင်း
     try: requests.get(f"{BASE_URL}/deleteWebhook")
     except: pass
     
