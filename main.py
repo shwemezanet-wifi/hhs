@@ -4,7 +4,6 @@ import time
 import threading
 import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import yt_dlp
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -34,41 +33,39 @@ def send_message(chat_id, text):
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
     
-    # ဖိုင်သိမ်းမည့် နာမည်သတ်မှတ်ခြင်း
-    filename = f"video_{chat_id}_{int(time.time())}.mp4"
-    
-    # YouTube တံတိုင်းကျော်ရန် ပုံသေ Token များ သုံးစွဲခြင်း
-    ydl_opts = {
-        'format': 'best[ext=mp4]/best', 
-        'outtmpl': filename, 
-        'timeout': 60,
-        'nocheckcertificate': True,
-        'quiet': True,
-        # YouTube Bot Block ကို ကျော်ဖြတ်ရန် တိုက်ရိုက်ခိုင်းစေချက်
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web'],
-                'skip': ['dash', 'hls']
-            }
-        }
-    }
-
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
+        # Telegram Bot များအတွက် အထူးပြုလုပ်ထားသော တည်ငြိမ်သည့် ဒေါင်းလုဒ် API
+        api_url = f"https://co.wuk.sh/api/json"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "url": video_url,
+            "vQuality": "720",
+            "isAudioOnly": False
+        }
+        
+        response = requests.post(api_url, json=payload, headers=headers, timeout=30).json()
+        
+        if "url" in response:
+            download_link = response["url"]
             
-        if os.path.exists(filename):
-            with open(filename, 'rb') as f:
-                requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=120)
-            os.remove(filename)
+            # ဗီဒီယိုဖိုင်ကို API ထံမှ လှမ်းဆွဲခြင်း
+            video_data = requests.get(download_link, timeout=60).content
+            
+            # Telegram သို့ တိုက်ရိုက် ပို့ဆောင်ခြင်း
+            files = {'video': ('video.mp4', video_data, 'video/mp4')}
+            requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
+            
+        elif response.get("status") == "error":
+            send_message(chat_id, f"❌ ဒေါင်းလုဒ်လုပ်၍မရပါ။ အကြောင်းရင်း: {response.get('text', 'လင့်ခ်မှားယွင်းနေပါသည်')}")
         else:
-            send_message(chat_id, "❌ ဗီဒီယိုကို ဒေါင်းလုဒ်ဆွဲမရပါ။ လင့်ခ် ပြန်စစ်ပေးပါ။")
+            send_message(chat_id, "❌ ဗီဒီယိုကို ရှာမတွေ့ပါ။ လင့်ခ်အမှန် ဖြစ်ရပါမည်။")
             
     except Exception as e:
-        print(f"Download Error: {e}", flush=True)
-        send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
-        if os.path.exists(filename):
-            os.remove(filename)
+        print(f"API Error: {e}", flush=True)
+        send_message(chat_id, "❌ ဆာဗာမှ တုံ့ပြန်မှု မရှိပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
 
 def bot_polling():
     print("🚀 BOT POLLING STARTED SUCCESSFULLY...", flush=True)
