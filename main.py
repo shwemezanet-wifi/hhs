@@ -4,7 +4,6 @@ import time
 import threading
 import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import yt_dlp
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -32,29 +31,38 @@ def send_message(chat_id, text):
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
     
-    # YouTube Link ဖြစ်ခဲ့ရင် YouTube တံတိုင်းကျော်မည့် proxy လမ်းကြောင်း ပြောင်းပေးခြင်း
-    if "youtube.com" in video_url or "youtu.be" in video_url:
-        video_url = video_url.replace("youtube.com", "yewtu.be").replace("youtu.be", "yewtu.be")
-
     try:
-        # ကွတ်ကီး မလိုဘဲ bypass လုပ်မည့် extractor settings များ
-        ydl_opts = {
-            'format': 'best', 
-            'outtmpl': 'video.%(ext)s', 
-            'timeout': 60,
-            'extractor_args': {'youtube': {'skip': ['dash', 'hls']}},
-            'nocheckcertificate': True,
-            'quiet': True
+        # ကမ္ဘာသုံး အလကားရသည့် All-in-one Video Downloader API သို့ လှမ်းခေါ်ခြင်း
+        api_url = f"https://api.cobalt.tools/api/json"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-            filename = ydl.prepare_filename(info)
-        with open(filename, 'rb') as f:
-            requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=90)
-        if os.path.exists(filename): os.remove(filename)
+        payload = {
+            "url": video_url,
+            "vQuality": "720" # ဗီဒီယို အရည်အသွေး
+        }
+        
+        response = requests.post(api_url, json=payload, headers=headers, timeout=30).json()
+        
+        if response.get("status") == "stream" or response.get("status") == "picker":
+            download_link = response.get("url")
+            
+            # ဗီဒီယိုဖိုင်ကို API ဆီကနေ လှမ်းဆွဲခြင်း
+            video_data = requests.get(download_link, timeout=60).content
+            
+            # Telegram ဆီ ဗီဒီယိုဖိုင် ပြန်ပို့ခြင်း
+            files = {'video': ('video.mp4', video_data, 'video/mp4')}
+            requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
+            
+        elif response.get("status") == "error":
+            send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ လင့်ခ် မှန်ကန်မှု ရှိမရှိ ပြန်စစ်ပေးပါ။")
+        else:
+            send_message(chat_id, "❌ ဗီဒီယိုကို ရှာမတွေ့ပါ။ နောက်တစ်ကြိမ် ပြန်စမ်းကြည့်ပါ။")
+            
     except Exception as e:
-        print(f"Download error: {e}", flush=True)
-        send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ (ဆာဗာ ယာယီမအားသေးပါ)")
+        print(f"API Error: {e}", flush=True)
+        send_message(chat_id, "❌ ဆာဗာ ယာယီ မအားသေးပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
 
 def bot_polling():
     print("🚀 BOT POLLING STARTED SUCCESSFULLY...", flush=True)
@@ -72,6 +80,17 @@ def bot_polling():
                         if text.startswith('/start'):
                             send_message(chat_id, "👋 မင်္ဂလာပါ! ဗီဒီယို Link ပို့ပေးပါ။")
                         else:
+                            threading.Thread(target=download_and_send, args=(chat_id, text)).start()
+        except Exception as e:
+            print(f"Network error: {e}", flush=True)
+            time.sleep(5)
+
+if __name__ == '__main__':
+    try: requests.get(f"{BASE_URL}/deleteWebhook")
+    except: pass
+    
+    threading.Thread(target=run_health_check, daemon=True).start()
+    bot_polling()
                             threading.Thread(target=download_and_send, args=(chat_id, text)).start()
         except Exception as e:
             print(f"Network error: {e}", flush=True)
