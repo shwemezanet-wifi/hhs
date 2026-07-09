@@ -15,7 +15,9 @@ app = FastAPI()
 BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+# UptimeRobot ရဲ့ GET ရော HEAD ရောကို အလုပ်လုပ်စေရန် ပြင်ဆင်ခြင်း
 @app.get("/")
+@app.head("/")
 def health_check():
     return {"status": "active", "message": "Bot Server is Running"}
 
@@ -54,7 +56,7 @@ def download_and_send(chat_id, video_url):
         if not success:
             send_message(chat_id, "❌ YouTube ဒေါင်းလုဒ်ဆွဲရန် API များ ယာယီ မအားသေးပါ။ ခေတ္တစောင့်ပြီး ပြန်စမ်းပါ။")
 
-    # ၂။ Facebook သို့မဟုတ် TikTok ဖြစ်ပါက ဆာဗာမှ တိုက်ရိုက် (yt-dlp) စနစ်ဖြင့် ပိတ်မသွားအောင် ဒေါင်းခြင်း
+    # ၂။ Facebook သို့မဟုတ် TikTok ဖြစ်ပါက ဆာဗာမှ တိုက်ရိုက် (yt-dlp) စနစ်ဖြင့် ဒေါင်းခြင်း
     else:
         filename = f"video_{chat_id}_{int(time.time())}.mp4"
         ydl_opts = {
