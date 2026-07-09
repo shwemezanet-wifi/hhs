@@ -1,28 +1,23 @@
 import os
 import sys
 import time
+import asyncio
 import threading
 import requests
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from fastapi import FastAPI
+import uvicorn
 
 sys.stdout.reconfigure(line_buffering=True)
+
+# FastAPI တည်ဆောက်ခြင်း (Render ပုံမှန်နိုးကြားစေရန်)
+app = FastAPI()
 
 BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Active")
-    def do_HEAD(self):
-        self.send_response(200)
-        self.end_headers()
-
-def run_health_check():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    server.serve_forever()
+@app.get("/")
+def health_check():
+    return {"status": "active", "message": "Bot Server is Running"}
 
 def send_message(chat_id, text):
     try:
@@ -33,7 +28,6 @@ def send_message(chat_id, text):
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
     
-    # အမြဲတမ်း Update ဖြစ်နေပြီး ပိတ်မသွားနိုင်သော Cobalt Public API များစာရင်း
     api_endpoints = [
         "https://cobalt.api.unblockit.pro/api/json",
         "https://api.cobalt.tools/api/json",
@@ -51,7 +45,6 @@ def download_and_send(chat_id, video_url):
     
     success = False
     
-    # ဆာဗာတစ်ခု ပျက်နေပါက နောက်တစ်ခုသို့ Auto ပြောင်းလဲစမ်းသပ်သည့်စနစ်
     for api_url in api_endpoints:
         try:
             response = requests.post(api_url, json=payload, headers=headers, timeout=15).json()
@@ -62,8 +55,7 @@ def download_and_send(chat_id, video_url):
                 requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
                 success = True
                 break
-        except Exception as e:
-            print(f"Failed endpoint {api_url}: {e}", flush=True)
+        except:
             continue
             
     if not success:
@@ -90,11 +82,21 @@ def bot_polling():
             print(f"Network error: {e}", flush=True)
             time.sleep(5)
 
+# Bot Polling ကို Background မှာ ပတ်ခိုင်းထားခြင်း
+def start_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    bot_polling()
+
 if __name__ == '__main__':
     try:
         requests.get(f"{BASE_URL}/deleteWebhook")
     except:
         pass
     
-    threading.Thread(target=run_health_check, daemon=True).start()
-    bot_polling()
+    # Bot ကို Thread တစ်ခုခွဲပြီး မောင်းနှင်ခြင်း
+    threading.Thread(target=start_bot, daemon=True).start()
+    
+    # Render အတွက် Web Server မောင်းနှင်ခြင်း
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
