@@ -15,7 +15,6 @@ app = FastAPI()
 BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-# UptimeRobot ရဲ့ GET ရော HEAD ရောကို အလုပ်လုပ်စေရန် ပြင်ဆင်ခြင်း
 @app.get("/")
 @app.head("/")
 def health_check():
@@ -71,8 +70,16 @@ def download_and_send(chat_id, video_url):
                 ydl.download([video_url])
                 
             if os.path.exists(filename):
+                file_size_mb = os.path.getsize(filename) / (1024 * 1024)
+                
                 with open(filename, 'rb') as f:
-                    requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=120)
+                    # ဖိုင်ဆိုဒ် 48MB အထက်ကြီးပါက Document အနေဖြင့် ပို့ပေးခြင်း (Telegram Limits ကျော်လွှားရန်)
+                    if file_size_mb > 48:
+                        send_message(chat_id, "📦 ဗီဒီယိုဖိုင်ဆိုဒ် 50MB နီးပါးကြီးမားနေသဖြင့် ဖိုင်အမျိုးအစား (Document) အနေဖြင့် လွှဲပြောင်းပေးပို့နေပါသည်။...")
+                        requests.post(f"{BASE_URL}/sendDocument", data={'chat_id': chat_id}, files={'document': f}, timeout=180)
+                    else:
+                        requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=120)
+                        
                 os.remove(filename)
             else:
                 send_message(chat_id, "❌ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲ၍ မရပါ။ လင့်ခ်မှားယွင်းနေနိုင်ပါသည်။")
