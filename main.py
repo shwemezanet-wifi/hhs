@@ -6,10 +6,10 @@ import threading
 import requests
 from fastapi import FastAPI
 import uvicorn
+import yt_dlp
 
 sys.stdout.reconfigure(line_buffering=True)
 
-# FastAPI တည်ဆောက်ခြင်း (Render ပုံမှန်နိုးကြားစေရန်)
 app = FastAPI()
 
 BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
@@ -28,38 +28,57 @@ def send_message(chat_id, text):
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
     
-    api_endpoints = [
-        "https://cobalt.api.unblockit.pro/api/json",
-        "https://api.cobalt.tools/api/json",
-        "https://cobalt-api.kwiatew.eu/api/json"
-    ]
-    
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "url": video_url,
-        "vQuality": "720"
-    }
-    
-    success = False
-    
-    for api_url in api_endpoints:
+    # ၁။ YouTube ဖြစ်ပါက API အရန်လမ်းကြောင်းများဖြင့် ကျော်ဒေါင်းခြင်း
+    if "youtube.com" in video_url or "youtu.be" in video_url:
+        api_endpoints = [
+            "https://cobalt.api.unblockit.pro/api/json",
+            "https://api.cobalt.tools/api/json",
+            "https://cobalt-api.kwiatew.eu/api/json"
+        ]
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        payload = {"url": video_url, "vQuality": "720"}
+        
+        success = False
+        for api_url in api_endpoints:
+            try:
+                response = requests.post(api_url, json=payload, headers=headers, timeout=15).json()
+                if response.get("status") in ["stream", "picker"]:
+                    download_link = response.get("url")
+                    video_data = requests.get(download_link, timeout=60).content
+                    files = {'video': ('video.mp4', video_data, 'video/mp4')}
+                    requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
+                    success = True
+                    break
+            except:
+                continue
+        if not success:
+            send_message(chat_id, "❌ YouTube ဒေါင်းလုဒ်ဆွဲရန် API များ ယာယီ မအားသေးပါ။ ခေတ္တစောင့်ပြီး ပြန်စမ်းပါ။")
+
+    # ၂။ Facebook သို့မဟုတ် TikTok ဖြစ်ပါက ဆာဗာမှ တိုက်ရိုက် (yt-dlp) စနစ်ဖြင့် ပိတ်မသွားအောင် ဒေါင်းခြင်း
+    else:
+        filename = f"video_{chat_id}_{int(time.time())}.mp4"
+        ydl_opts = {
+            'format': 'best[ext=mp4]/best',
+            'outtmpl': filename,
+            'timeout': 60,
+            'nocheckcertificate': True,
+            'quiet': True
+        }
         try:
-            response = requests.post(api_url, json=payload, headers=headers, timeout=15).json()
-            if response.get("status") in ["stream", "picker"]:
-                download_link = response.get("url")
-                video_data = requests.get(download_link, timeout=60).content
-                files = {'video': ('video.mp4', video_data, 'video/mp4')}
-                requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files=files, timeout=90)
-                success = True
-                break
-        except:
-            continue
-            
-    if not success:
-        send_message(chat_id, "❌ ဗီဒီယိုကို ဒေါင်းလုဒ်ဆွဲ၍မရပါ။ လင့်ခ်မှားယွင်းနေခြင်း သို့မဟုတ် ဆာဗာများ အားလုံးမအားသေးခြင်း ဖြစ်နိုင်ပါသည်။")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
+                
+            if os.path.exists(filename):
+                with open(filename, 'rb') as f:
+                    requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=120)
+                os.remove(filename)
+            else:
+                send_message(chat_id, "❌ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲ၍ မရပါ။ လင့်ခ်မှားယွင်းနေနိုင်ပါသည်။")
+        except Exception as e:
+            print(f"Direct Download Error: {e}", flush=True)
+            send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
+            if os.path.exists(filename):
+                os.remove(filename)
 
 def bot_polling():
     print("🚀 BOT POLLING STARTED SUCCESSFULLY...", flush=True)
@@ -82,7 +101,6 @@ def bot_polling():
             print(f"Network error: {e}", flush=True)
             time.sleep(5)
 
-# Bot Polling ကို Background မှာ ပတ်ခိုင်းထားခြင်း
 def start_bot():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -94,9 +112,7 @@ if __name__ == '__main__':
     except:
         pass
     
-    # Bot ကို Thread တစ်ခုခွဲပြီး မောင်းနှင်ခြင်း
     threading.Thread(target=start_bot, daemon=True).start()
     
-    # Render အတွက် Web Server မောင်းနှင်ခြင်း
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
