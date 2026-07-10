@@ -20,8 +20,8 @@ BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 SERVER_URL = "https://hhs-zlhu.onrender.com" 
 
-ADMIN_ID = 573829102  # <--- သင့် Chat ID
-ADMIN_USERNAME = "your_telegram_username" # <--- သင့် Username (@ မပါဘဲ)
+ADMIN_ID = 8391123176  # <--- သင့် Chat ID
+ADMIN_USERNAME = "heinmezatg" # <--- သင့် Username (@ မပါဘဲ)
 
 # 📢 (က) လက်ရှိပြသမည့် ကြော်ငြာစာသားကို ဤနေရာတွင် စိတ်ကြိုက်ပြောင်းလဲနိုင်ပါသည်
 AD_TEXT = "📢 <b>[ကြော်ငြာ]</b> မြန်မာနိုင်ငံ၏ ယုံကြည်စိတ်ချရဆုံး အွန်လိုင်းစျေးဝယ်ပလက်ဖောင်းကို အသုံးပြုရန် <a href='https://example.com'>ဤနေရာကိုနှိပ်ပါ</a>"
