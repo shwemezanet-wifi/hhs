@@ -23,8 +23,7 @@ SERVER_URL = "https://hhs-zlhu.onrender.com"
 ADMIN_ID = 8391123176  # <--- သင့် Chat ID
 ADMIN_USERNAME = "heinmezatg" # <--- သင့် Username (@ မပါဘဲ)
 
-# 📢 (က) လက်ရှိပြသမည့် ကြော်ငြာစာသားကို ဤနေရာတွင် စိတ်ကြိုက်ပြောင်းလဲနိုင်ပါသည်
-AD_TEXT = "📢 <b>[ကြော်ငြာ]</b> မြန်မာနိုင်ငံ၏ ယုံကြည်စိတ်ချရဆုံး အွန်လိုင်းစျေးဝယ်ပလက်ဖောင်းကို အသုံးပြုရန် <a href='https://example.com'>ဤနေရာကိုနှိပ်ပါ</a>"
+DEFAULT_AD = "📢 <b>[ကြော်ငြာ]</b> မြန်မာနိုင်ငံ၏ ယုံကြည်စိတ်ချရဆုံး အွန်လိုင်းစျေးဝယ်ပလက်ဖောင်းကို အသုံးပြုရန် ဤနေရာကိုနှိပ်ပါ"
 
 DOWNLOAD_DIR = "downloads"
 if not os.path.exists(DOWNLOAD_DIR):
@@ -35,8 +34,14 @@ JSON_FILE = "codes.json"
 def load_data():
     if os.path.exists(JSON_FILE):
         with open(JSON_FILE, "r") as f:
-            return json.load(f)
-    return {"active_codes": [], "premium_users": [], "all_users": []}
+            try:
+                data = json.load(f)
+                if "current_ad" not in data:
+                    data["current_ad"] = DEFAULT_AD
+                return data
+            except:
+                pass
+    return {"active_codes": [], "premium_users": [], "all_users": [], "current_ad": DEFAULT_AD}
 
 def save_data(data):
     with open(JSON_FILE, "w") as f:
@@ -119,28 +124,31 @@ def download_process(chat_id, video_url, quality):
 
 pending_db = {}
 
-# 📢 (ခ) User အားလုံးဆီ ကြော်ငြာ တစ်ပြိုင်တည်း ပို့ပေးမည့် Function
-def broadcast_ads_process(admin_id, ad_message):
+# 📢 ဗီဒီယို/ဓာတ်ပုံ/အသံဖိုင်များပါ အစုလိုက် Forward လုပ်ပြီး ပို့ပေးမည့် စနစ်သစ်
+def broadcast_forward_process(admin_id, from_chat_id, message_id):
     db = load_data()
     users = db.get("all_users", [])
-    send_message(admin_id, f"⏳ ကြော်ငြာကို စုစုပေါင်း User <code>{len(users)}</code> ဦးထံ စတင်ပေးပို့နေပါပြီ...")
+    send_message(admin_id, f"⏳ မီဒီယာကြော်ငြာ (Video/Photo/Audio) ကို User <code>{len(users)}</code> ဦးထံ စတင် Forward လုပ်နေပါပြီ...")
     
     success_count = 0
     for u_id in users:
         try:
-            # တားဆီးခံရခြင်း (Block) သို့မဟုတ် အမှားများကို ကျော်ဖြတ်ရန် စက္ကန့်ပိုင်းခွဲပို့ခြင်း
-            payload = {"chat_id": int(u_id), "text": ad_message, "parse_mode": "HTML"}
-            res = requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=5).json()
+            payload = {
+                "chat_id": int(u_id),
+                "from_chat_id": from_chat_id,
+                "message_id": message_id
+            }
+            res = requests.post(f"{BASE_URL}/forwardMessage", json=payload, timeout=5).json()
             if res.get("ok"):
                 success_count += 1
-            time.sleep(0.1)  # Telegram API limit မမိစေရန် ထိန်းခြင်း
+            time.sleep(0.1) # API Limit မမိအောင် ထိန်းခြင်း
         except:
             pass
             
-    send_message(admin_id, f"✅ ကြော်ငြာပေးပို့မှု ပြီးဆုံးပါပြီ။\n📊 အောင်မြင်စွာ ပို့ဆောင်နိုင်မှု: <code>{success_count}</code> ဦး")
+    send_message(admin_id, f"✅ မီဒီယာကြော်ငြာ ပို့ဆောင်မှု ပြီးဆုံးပါပြီ။\n📊 အောင်မြင်မှု: <code>{success_count}</code> ဦး")
 
 def bot_polling():
-    print("🚀 PREMIUM BOT WITH ADS ACTIVE...", flush=True)
+    print("🚀 MULTIMEDIA ADS BOT ACTIVE...", flush=True)
     offset = 0
     while True:
         try:
@@ -208,16 +216,18 @@ def bot_polling():
                                 kpay_msg = (
                                     f"🔒 <b>{quality}p အသုံးပြုရန် Premium လိုင်စင် လိုအပ်ပါသည်။</b>\n\n"
                                     f"💰 <b>ငွေပေးချေရန် KPay အချက်အလက် -</b>\n"
-                                    f"• KPay နံပါတ်: <code>09784732943</code>\n"
-                                    f"• အကောင့်နာမည်: <code>U Tun Tun Latt</code>\n"
-                                    f"• ကျသင့်ငွေ: <code>10000</code> ကျပ်\n\n"
+                                    f"• KPay နံပါတ်: <code>09123456789</code>\n"
+                                    f"• အကောင့်နာမည်: <code>U Mya / Daw Hla</code>\n"
+                                    f"• ကျသင့်ငွေ: <code>၅၀၀</code> ကျပ်\n\n"
                                     f"👉 ကျေးဇူးပြု၍ အထက်ပါအကောင့်သို့ Ngwe လွှဲပြီးနောက် ရရှိလာသော <b>ငွေလွှဲစလစ် (Screenshot) ပုံကို</b> ဤဘော့ထဲသို့ တိုက်ရိုက် ပို့ပေးလိုက်ပါဗျာ။\n"
                                     f"Admin မှ စက္ကန့်ပိုင်းအတွင်း အတည်ပြုပြီး Premium ဖွင့်ပေးပါလိမ့်မည်။"
                                 )
                                 send_message(chat_id, kpay_msg)
 
                     elif "message" in update:
-                        chat_id = update["message"]["chat"]["id"]
+                        msg_data = update["message"]
+                        chat_id = msg_data["chat"]["id"]
+                        message_id = msg_data["message_id"]
                         
                         db = load_data()
                         if "all_users" not in db: db["all_users"] = []
@@ -225,26 +235,40 @@ def bot_polling():
                             db["all_users"].append(chat_id)
                             save_data(db)
 
-                        if "photo" in update["message"] and chat_id != ADMIN_ID:
-                            file_id = update["message"]["photo"][-1]["file_id"]
+                        # 🔒 Admin ဆီကနေ Video/Audio/Photo ကြော်ငြာတွေ Forward လုပ်လာရင် အစုလိုက် ပြန်ပို့ပေးမည့် စနစ်
+                        if chat_id == ADMIN_ID and ("video" in msg_data or "audio" in msg_data or "voice" in msg_data or "animation" in msg_data or ("photo" in msg_data and "reply_to_message" not in msg_data)):
+                            # အကယ်၍ caption ထဲမှာ /ad ပါရင် သို့မဟုတ် ဒီတိုင်း ပို့လာရင် အစုလိုက်ပို့မည်
+                            threading.Thread(target=broadcast_forward_process, args=(ADMIN_ID, ADMIN_ID, message_id)).start()
+                            continue
+
+                        if "photo" in msg_data and chat_id != ADMIN_ID:
+                            file_id = msg_data["photo"][-1]["file_id"]
                             approve_menu = {
                                 "inline_keyboard": [[{"text": "🔑 အတည်ပြုပြီး Premium ဖွင့်ပေးရန်", "callback_data": f"approve_{chat_id}"}]]
                             }
-                            payload = {"chat_id": ADMIN_ID, "photo": file_id, "caption": f"📩 <b>User ထံမှ ငွေလွှဲစလစ် ရောက်လာပါသည်-</b>\n• Chat ID: <code>{chat_id}</code>", "parse_mode": "HTML", "reply_markup": json.dumps(approve_menu)}
+                            payload = {"chat_id": ADMIN_ID, "photo": file_id, "caption": f"📩 <b>User ထံမှ Ngweလွှဲစလစ် ရောက်လာပါသည်-</b>\n• Chat ID: <code>{chat_id}</code>", "parse_mode": "HTML", "reply_markup": json.dumps(approve_menu)}
                             requests.post(f"{BASE_URL}/sendPhoto", json=payload)
                             send_message(chat_id, "📥 သင်၏ ငွေလွှဲစလစ်ပုံကို လက်ခံရရှိပါပြီ။ Admin မှ စစ်ဆေးနေပါသဖြင့် ခေတ္တစောင့်ဆိုင်းပေးပါဦးဗျာ...")
                             continue
 
-                        if "text" in update["message"]:
-                            text = update["message"]["text"].strip()
+                        if "text" in msg_data:
+                            text = msg_data["text"].strip()
                             
-                            # 📢 (ခ) Admin ဖြစ်ပြီး /ad ဟု စတင်လျှင် ကြော်ငြာအစုလိုက်ပို့ပေးခြင်း
+                            if chat_id == ADMIN_ID and text.startswith("/setad "):
+                                new_ad = text.replace("/setad ", "", 1)
+                                if new_ad:
+                                    db = load_data()
+                                    db["current_ad"] = new_ad
+                                    save_data(db)
+                                    send_message(ADMIN_ID, f"✅ <b>အောင်မြင်ပါသည်!</b> ပုံသေပြသမည့် ကြော်ငြာစာသားကို ပြောင်းလဲလိုက်ပါပြီ-\n\n{new_ad}")
+                                continue
+
                             if chat_id == ADMIN_ID and text.startswith("/ad "):
                                 ad_content = text.replace("/ad ", "", 1)
                                 if ad_content:
-                                    threading.Thread(target=broadcast_ads_process, args=(ADMIN_ID, ad_content)).start()
-                                else:
-                                    send_message(ADMIN_ID, "❌ နမူနာပုံစံ - <code>/ad သင့်ကြော်ငြာစာသား</code> ဟု ရိုက်ပေးပါ။")
+                                    db = load_data()
+                                    users = db.get("all_users", [])
+                                    threading.Thread(target=broadcast_forward_process, args=(ADMIN_ID, ADMIN_ID, message_id)).start() # စာသားကိုလည်း Forward အနေနဲ့ ပို့နိုင်သည်
                                 continue
 
                             if chat_id != ADMIN_ID and not text.startswith('/'):
@@ -281,8 +305,9 @@ def bot_polling():
                                         [{"text": "💎 720p (Premium)", "callback_data": f"q_720|{text}"}]
                                     ]
                                 }
-                                # 📢 (က) အရည်အသွေးရွေးခိုင်းသည့်စာအောက်တွင် ကြော်ငြာစာသားအမြဲကပ်လျက်ထည့်သွင်းခြင်း
-                                msg_with_ad = f"⬇️ ဗီဒီယို အရည်အသွေး (Quality) ကို ရွေးချယ်ပေးပါ-\n\n{AD_TEXT}"
+                                db = load_data()
+                                current_ad_text = db.get("current_ad", DEFAULT_AD)
+                                msg_with_ad = f"⬇️ ဗီဒီယို အရည်အသွေး (Quality) ကို ရွေးချယ်ပေးပါ-\n\n{current_ad_text}"
                                 send_message(chat_id, msg_with_ad, reply_markup=menu)
         except Exception as e:
             time.sleep(5)
