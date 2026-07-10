@@ -219,23 +219,37 @@ def bot_polling():
                         if "text" in msg_data:
                             text = msg_data["text"].strip()
                             
-                            # 🔑 1. အက်ဒမင်များ ပရီမီယမ်ကုဒ် ထုတ်သည့်စနစ် (/gen week/month/year)
+                            # 🔑 1. အက်ဒမင်များ ပရီမီယမ်ကုဒ် ထုတ်သည့်စနစ် (/gen week [အပုဒ်ရေ])
                             if chat_id in ADMIN_IDS and text.startswith("/gen"):
                                 parts = text.split()
                                 if len(parts) < 2 or parts[1].lower() not in ["week", "month", "year"]:
-                                    send_message(chat_id, "❌ ပုံစံမှားနေပါသည်။ အောက်ပါအတိုင်း ရိုက်ပါ-\n• <code>/gen week</code>\n• <code>/gen month</code>\n• <code>/gen year</code>")
+                                    send_message(chat_id, "❌ ပုံစံမှားနေပါသည်။ အောက်ပါအတိုင်း ရိုက်ပါ-\n• <code>/gen week</code> (၁ ကုဒ်ထုတ်ရန်)\n• <code>/gen week 10</code> (၁၀ ကုဒ် တစ်ပြိုင်တည်းထုတ်ရန်)")
                                     continue
                                 
                                 duration_type = parts[1].lower()
-                                random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-                                generated_code = f"PREM-{duration_type.upper()}-{random_str}"
+                                
+                                # အရေအတွက် စစ်ဆေးခြင်း (နောက်မှာ အရေအတွက် ပါရင် ယူမယ်၊ မပါရင် ၁ ကုဒ်ပဲ ထုတ်မယ်)
+                                count = 1
+                                if len(parts) >= 3:
+                                    try: count = int(parts[2])
+                                    except: count = 1
                                 
                                 db = load_data()
-                                db["active_codes"][generated_code] = duration_type
+                                generated_codes_list = []
+                                
+                                # လူကြီးမင်း လိုချင်သလောက် Loop ပတ်ပြီး ကုဒ်ထုတ်ပေးခြင်း
+                                for _ in range(count):
+                                    random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+                                    generated_code = f"PREM-{duration_type.upper()}-{random_str}"
+                                    db["active_codes"][generated_code] = duration_type
+                                    generated_codes_list.append(f"• <code>{generated_code}</code>")
+                                
                                 save_data(db)
                                 
-                                send_message(chat_id, f"✅ <b>ပရီမီယမ်ကုဒ် အောင်မြင်စွာထုတ်ပြီးပါပြီ!</b>\n\n🎫 ကုဒ်: <code>{generated_code}</code>\n⏱️ သက်တမ်းအမျိုးအစား: <b>{duration_type.upper()}</b>\n\n👉 ဤကုဒ်ကို ကော်ပီယူပြီး အသုံးပြုသူထံ လက်ဆောင်ပေးလိုက်ပါဗျာ။")
+                                codes_text = "\n".join(generated_codes_list)
+                                send_message(chat_id, f"✅ <b>ပရီမီယမ်ကုဒ် ({count}) ခု အောင်မြင်စွာထုတ်ပြီးပါပြီ!</b>\n\n⏱️ သက်တမ်း: <b>{duration_type.upper()}</b>\n\n🎫 <b>ကုဒ်စာရင်း -</b>\n{codes_text}\n\n👉 ဤကုဒ်များကို ကော်ပီယူပြီး အသုံးပြုသူများထံ ဖြန့်ဝေနိုင်ပါပြီဗျာ။")
                                 continue
+
 
                             # 🎁 2. အသုံးပြုသူများ ကုဒ်ပြန်လည်အသုံးပြုသည့်စနစ် (/redeem [ကုဒ်])
                             if text.startswith("/redeem "):
