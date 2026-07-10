@@ -7,11 +7,12 @@ import json
 import random
 import string
 import requests
+import queue
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 import uvicorn
 import yt_dlp
-from datetime import datetime, timedelta
+from datetime import datetime
 
 sys.stdout.reconfigure(line_buffering=True)
 
@@ -21,7 +22,7 @@ BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 SERVER_URL = "https://hhs-zlhu.onrender.com" 
 
-ADMIN_IDS = [8391123176, 573829102]  # <--- အက်ဒမင်နှင့် အေးဂျင့် ID များ
+ADMIN_IDS = [8391123176, 573829102]  # <--- မိမိ ID နှင့် အေးဂျင့် ID များ
 
 DEFAULT_AD = "📢 <b>[ကြော်ငြာ]</b> မြန်မာနိုင်ငံ၏ ယုံကြည်စိတ်ချရဆုံး အွန်လိုင်းစျေးဝယ်ပလက်ဖောင်းကို အသုံးပြုရန် ဤနေရာကိုနှိပ်ပါ"
 
@@ -31,6 +32,9 @@ if not os.path.exists(DOWNLOAD_DIR):
 
 JSON_FILE = "codes.json"
 
+# 🔄 Senior/Junior စနစ်တကျ တန်းစီရန်အတွက် Queue စနစ် ကြေညာခြင်း
+download_queue = queue.Queue()
+
 def load_data():
     if os.path.exists(JSON_FILE):
         with open(JSON_FILE, "r") as f:
@@ -38,8 +42,8 @@ def load_data():
                 data = json.load(f)
                 if "current_ad" not in data: data["current_ad"] = DEFAULT_AD
                 if "all_users" not in data: data["all_users"] = []
-                if "premium_users" not in data: data["premium_users"] = {} # dict ပုံစံပြောင်းသည် {str(chat_id): expire_timestamp}
-                if "active_codes" not in data: data["active_codes"] = {} # dict ပုံစံပြောင်းသည် {code: duration_type}
+                if "premium_users" not in data: data["premium_users"] = {}
+                if "active_codes" not in data: data["active_codes"] = {}
                 return data
             except: pass
     return {"active_codes": {}, "premium_users": {}, "all_users": [], "current_ad": DEFAULT_AD}
@@ -73,7 +77,15 @@ def get_file(file_name: str):
 def send_message(chat_id, text, reply_markup=None):
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     if reply_markup: payload["reply_markup"] = json.dumps(reply_markup)
-    try: requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10)
+    try: 
+        res = requests.post(f"{BASE_URL}/sendMessage", json=payload, timeout=10).json()
+        return res.get("result")
+    except: return None
+
+def edit_message(chat_id, message_id, text):
+    """စာတန်းအထပ်ထပ် မတက်စေရန် စာသားကို အော်တို ပြောင်းလဲပေးသည့် Function"""
+    payload = {"chat_id": chat_id, "message_id": message_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+    try: requests.post(f"{BASE_URL}/editMessageText", json=payload, timeout=10)
     except: pass
 
 def auto_delete_file(file_path, delay=3600):
@@ -90,10 +102,8 @@ def get_video_duration(video_url):
             return info.get('duration', 0)
     except: return 0
 
-def download_process(chat_id, video_url, is_prem_user):
-    quality_text = "720p (HD)" if is_prem_user else "240p (Free)"
-    send_message(chat_id, f"⏳ သင်သည် {quality_text} ဖြင့် ဗီဒီယိုကို စတင်ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
-    
+def raw_download_process(chat_id, video_url, is_prem_user, status_msg_id):
+    """အမှန်တကယ် ဗီဒီယိုဒေါင်းလုဒ်ဆွဲပြီး ပို့ဆောင်ပေးသည့် လုပ်ငန်းစဉ်"""
     if is_prem_user:
         format_selector = "bestvideo[height<=720]+bestaudio/best"
     else:
@@ -119,6 +129,9 @@ def download_process(chat_id, video_url, is_prem_user):
             db = load_data()
             ad_text = db.get("current_ad", DEFAULT_AD)
             
+            # စာဟောင်းကို ဖျက်ရန် သို့မဟုတ် အပြီးသတ်စာသားပြောင်းရန်
+            edit_message(chat_id, status_msg_id, "✅ ဒေါင်းလုဒ်လုပ်ခြင်း ပြီးဆုံးပါပြီ။ ဗီဒီယိုဖိုင်ကို ပို့ပေးနေပါပြီ...")
+            
             if file_size_mb > 45:
                 download_url = f"{SERVER_URL}/get_file/{file_id}"
                 send_message(chat_id, f"📦 ဖိုင်ဆိုဒ် {file_size_mb:.2f} MB ရှိသဖြင့် Chrome မှ ဒေါင်းပါ-\n{download_url}\n\n⚠️ (၁ နာရီအတွင်းသာ ရပါမည်။)\n\n{ad_text}")
@@ -127,10 +140,32 @@ def download_process(chat_id, video_url, is_prem_user):
                 with open(filename, 'rb') as f:
                     requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id, 'caption': ad_text, 'parse_mode': 'HTML'}, files={'video': f}, timeout=120)
                 os.remove(filename)
-        else: send_message(chat_id, "❌ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲ၍ မရပါ။ လင့်ခ်မှားယွင်းနေခြင်း ဖြစ်နိုင်ပါသည်။")
+        else: 
+            edit_message(chat_id, status_msg_id, "❌ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲ၍ မရပါ။ လင့်ခ်မှားယွင်းနေခြင်း ဖြစ်နိုင်ပါသည်။")
     except Exception as e:
-        send_message(chat_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
+        edit_message(chat_id, status_msg_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
         if os.path.exists(filename): os.remove(filename)
+
+def queue_worker():
+    """အနောက်ကွယ်ကနေ Senior/Junior အလိုက် တစ်ယောက်ပြီးတစ်ယောက် Auto ဒေါင်းပေးမည့် အလုပ်သမား"""
+    print("🤖 BACKEND QUEUE WORKER STARTED...", flush=True)
+    while True:
+        try:
+            # တန်းစီဇယားထဲမှ အလုပ်ကို ယူခြင်း (အလုပ်မရှိရင် ငြိမ်ပြီးစောင့်နေမည်)
+            task = download_queue.get()
+            chat_id, video_url, is_prem_user, status_msg_id = task
+            
+            # သူ့အလှည့်ရောက်ပြီဖြစ်၍ စာသားကို အော်တို ပြောင်းလဲပေးခြင်း
+            quality_text = "720p (HD)" if is_prem_user else "240p (Free)"
+            edit_message(chat_id, status_msg_id, f"⏳ သင့်အလှည့် ရောက်ပါပြီ။ {quality_text} ဖြင့် ဗီဒီယိုကို စတင်ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
+            
+            # မူရင်းဒေါင်းလုဒ် လုပ်ငန်းစဉ်ကို ပတ်ခြင်း
+            raw_download_process(chat_id, video_url, is_prem_user, status_msg_id)
+            
+            # အလုပ်တစ်ခု ပြီးဆုံးကြောင်း ကြေညာခြင်း
+            download_queue.task_done()
+        except Exception as e:
+            time.sleep(2)
 
 def broadcast_forward_process(admin_id, from_chat_id, message_id):
     db = load_data()
@@ -147,7 +182,7 @@ def broadcast_forward_process(admin_id, from_chat_id, message_id):
     send_message(admin_id, f"✅ ကြော်ငြာ ပို့ဆောင်မှု ပြီးဆုံးပါပြီ။\n📊 အောင်မြင်မှု: <code>{success_count}</code> ဦး")
 
 def bot_polling():
-    print("🚀 SUBSCRIPTION & AUTO-QUALITY BOT ACTIVE...", flush=True)
+    print("🚀 SENIOR-JUNIOR QUEUE & AUTO-QUALITY BOT ACTIVE...", flush=True)
     offset = 0
     while True:
         try:
@@ -184,7 +219,7 @@ def bot_polling():
                         if "text" in msg_data:
                             text = msg_data["text"].strip()
                             
-                            # 🔑 1. အက်ဒမင်များ ပရီမီယမ်ကုဒ် ထုတ်သည့်စနစ် (/gen week, /gen month, /gen year)
+                            # 🔑 1. အက်ဒမင်များ ပရီမီယမ်ကုဒ် ထုတ်သည့်စနစ် (/gen week/month/year)
                             if chat_id in ADMIN_IDS and text.startswith("/gen"):
                                 parts = text.split()
                                 if len(parts) < 2 or parts[1].lower() not in ["week", "month", "year"]:
@@ -210,7 +245,6 @@ def bot_polling():
                                 if user_code in db.get("active_codes", {}):
                                     dtype = db["active_codes"][user_code]
                                     
-                                    # သက်တမ်းတွက်ချက်ခြင်း
                                     now = time.time()
                                     current_prem, current_expire = is_premium(chat_id)
                                     base_time = current_expire if current_prem else now
@@ -221,11 +255,11 @@ def bot_polling():
                                     
                                     new_expire = base_time + add_seconds
                                     db["premium_users"][str(chat_id)] = new_expire
-                                    del db["active_codes"][user_code] # သုံးပြီးသားကုဒ်ဖျက်သည်
+                                    del db["active_codes"][user_code]
                                     save_data(db)
                                     
                                     expire_date = datetime.fromtimestamp(new_expire).strftime('%Y-%m-%d %H:%M:%S')
-                                    send_message(chat_id, f"🎉 <b>ကုဒ်အသုံးပြုမှု အောင်မြင်ပါသည်!</b>\n\n💎 သင်၏အကောင့်သည် <b>{dtype.upper()}</b> ပရီမီယမ်အဖြစ်သို့ ရောက်ရှိသွားပါပြီ။\n📅 သက်တမ်းကုန်ဆုံးမည့်ရက်: <code>{expire_date}</code>\n🚀 ယခုမှစ၍ မိနစ်အရှည်ကြီးများနှင့် HD ဗီဒီယိုများကို ခလုတ်နှိပ်စရာမလိုဘဲ တိုက်ရိုက်ဒေါင်းနိုင်ပါပြီဗျာ။")
+                                    send_message(chat_id, f"🎉 <b>ကုဒ်အသုံးပြုမှု အောင်မြင်ပါသည်!</b>\n\n💎 သင်၏အကောင့်သည် <b>{dtype.upper()}</b> ပရီမီယမ်အဖြစ်သို့ ရောက်ရှိသွားပါပြီ။\n📅 သက်တမ်းကုန်ဆုံးမည့်ရက်: <code>{expire_date}</code>\n🚀 ယခုမှစ၍ မိနစ်အရှည်ကြီးများနှင့် HD ဗီဒီယိုများကို တိုက်ရိုက်ဒေါင်းနိုင်ပါပြီဗျာ။")
                                 else:
                                     send_message(chat_id, "❌ သင်ရိုက်ထည့်လိုက်သော ကုဒ် မမှန်ကန်ပါ သို့မဟုတ် အသုံးပြုပြီးသားဖြစ်နေပါသည်။")
                                 continue
@@ -268,25 +302,35 @@ def bot_polling():
                                 send_message(chat_id, f"📊 <b>ဘော့အခြေအနေ:</b>\n\n• စုစုပေါင်းအသုံးပြုသူ: <code>{total}</code> ဦး\n• လက်ရှိ Premium အသုံးပြုသူ: <code>{prem_count}</code> ဦး")
                                 continue
 
-                            # 🎬 3. ဗီဒီယိုလင့်ခ် ပို့လိုက်လျှင် အော်တို ဒေါင်းလုဒ်ဆွဲပေးသည့်စနစ်
+                            # 🎬 3. ဗီဒီယိုလင့်ခ် ပို့လာလျှင် တန်းစီဇယားထဲထည့်ပြီး အော်တိုဒေါင်းပေးသည့်စနစ်
                             elif text.startswith("http://") or text.startswith("https://"):
+                                duration = get_video_duration(text)
+                                
+                                # ⚠️ (၁) နာရီထက် ပိုရှည်သော ဗီဒီယိုများကို ဆာဗာလုံခြုံရေးအရ ပယ်ချခြင်း
+                                if duration > 3600:
+                                    send_message(chat_id, "⚠️ <b>ဆောရီးဗျာ!</b>\n\nဆာဗာလုံခြုံရေးအရ (၁) နာရီထက် ပိုရှည်သော ဗီဒီယိုများကို ဒေါင်းလုဒ်ဆွဲခွင့် မပြုသေးပါ။ အခြားဗီဒီယိုများကို စမ်းကြည့်ပေးပါဗျာ။")
+                                    continue
+
                                 prem_status, expire_timestamp = is_premium(chat_id)
                                 
-                                if not prem_status: # Free သမားဆိုလျှင် ၅ မိနစ်ကျော်ကန့်သတ်ချက်စစ်မည်
-                                    duration = get_video_duration(text)
-                                    if duration > 300:
-                                        msg = (
-                                            f"⚠️ <b>Free ဗားရှင်းတွင် (၅) မိနစ်အောက် ဗီဒီယိုများကိုသာ ခွင့်ပြုပါသည်။</b>\n\n"
-                                            f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
-                                            f"• KPay နံပါတ်: <code>09123456789</code> (U Mya)\n"
-                                            f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ ကျပ် | ၁ နှစ်စာ ၄၀၀၀၀ ကျပ်\n\n"
-                                            f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
-                                        )
-                                        send_message(chat_id, msg)
-                                        continue
+                                # Free သမားဆိုလျှင် ၅ မိနစ်ကျော်ကန့်သတ်ချက်စစ်မည်
+                                if not prem_status and duration > 300:
+                                    msg = (
+                                        f"⚠️ <b>Free ဗားရှင်းတွင် (၅) မိနစ်အောက် ဗီဒီယိုများကိုသာ ခွင့်ပြုပါသည်။</b>\n\n"
+                                        f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
+                                        f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latt)\n"
+                                        f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ ကျပ် |၁ နှစ်စာ ၄၀၀၀၀ ကျပ် \n\n"
+                                        f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
+                                    )
+                                    send_message(chat_id, msg)
+                                    continue
                                 
-                                # ကွာလတီရွေးခိုင်းခြင်းမရှိတော့ဘဲ တိုက်ရိုက်ဒေါင်းလုပ်ဆွဲပေးမည်
-                                threading.Thread(target=download_process, args=(chat_id, text, prem_status)).start()
+                                # 📥 တန်းစီဇယားထဲ ရောက်ရှိကြောင်း ယာယီစာတန်းပို့ခြင်း
+                                status_msg = send_message(chat_id, "📥 သင်၏ ဗီဒီယိုကို တန်းစီဇယားထဲ ထည့်သွင်းလိုက်ပါပြီ။ သင့်အလှည့်ရောက်လျှင် အလိုအလျောက် ဒေါင်းပေးမည်ဖြစ်၍ ခေတ္တစောင့်ဆိုင်းပေးပါဦးဗျာ...")
+                                
+                                if status_msg:
+                                    # Senior/Junior အလိုက် အချိန်မှတ်ပြီး Queue စနစ်ထဲသို့ ထည့်သွင်းလိုက်ခြင်း
+                                    download_queue.put((chat_id, text, prem_status, status_msg['message_id']))
 
         except Exception as e:
             time.sleep(5)
@@ -294,6 +338,10 @@ def bot_polling():
 if __name__ == '__main__':
     try: requests.get(f"{BASE_URL}/deleteWebhook")
     except: pass
+    
+    # 🔄 အနောက်ကွယ်ကနေ တစ်ယောက်ပြီးတစ်ယောက် အလှည့်ကျ Auto ဒေါင်းပေးမည့် Background Worker ကို စတင်ပတ်ခြင်း
+    threading.Thread(target=queue_worker, daemon=True).start()
+    
     threading.Thread(target=bot_polling, daemon=True).start()
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
