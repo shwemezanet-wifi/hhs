@@ -22,7 +22,7 @@ SERVER_URL = "https://hhs-zlhu.onrender.com"
 
 # 👑 လူကြီးမင်း၏ တရားဝင် Telegram Chat ID (လူကြီးမင်း တစ်ဦးတည်းသာ ကုဒ်ထုတ်နိုင်ရန်)
 # သင့် Chat ID ကို မသိပါက ဘော့ထဲ /start ဟု ပို့လျှင် ၎င်း ID နံပါတ် ထွက်လာပါလိမ့်မည်။
-ADMIN_ID = 123456789  # <--- မိမိ၏ Chat ID ဂဏန်းအမှန်ဖြင့် ဤနေရာတွင် အစားထိုးလဲလှယ်ပါ ⚠️
+ADMIN_ID = 8391123176  # <--- မိမိ၏ Chat ID ဂဏန်းအမှန်ဖြင့် ဤနေရာတွင် အစားထိုးလဲလှယ်ပါ ⚠️
 
 DOWNLOAD_DIR = "downloads"
 if not os.path.exists(DOWNLOAD_DIR):
