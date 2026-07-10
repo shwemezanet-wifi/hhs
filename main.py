@@ -5,6 +5,7 @@ import asyncio
 import threading
 import requests
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 import uvicorn
 import yt_dlp
 
@@ -14,17 +15,41 @@ app = FastAPI()
 
 BOT_TOKEN = "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo"
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+# သင့် Render ဆာဗာ၏ လင့်ခ်အမှန်
+SERVER_URL = "https://hhs-zlhu.onrender.com" 
+
+# ဒေါင်းလုဒ်လုပ်ထားသော ဗီဒီယိုဖိုင်ကြီးများကို သိမ်းဆည်းရန် Folder
+DOWNLOAD_DIR = "downloads"
+if not os.path.exists(DOWNLOAD_DIR):
+    os.makedirs(DOWNLOAD_DIR)
 
 @app.get("/")
 @app.head("/")
 def health_check():
     return {"status": "active", "message": "Bot Server is Running"}
 
+# ဖိုင်ဆိုဒ်ကြီးမားသော ဗီဒီယိုများကို လင့်ခ်ဖြင့် ဒေါင်းလုဒ်ပေးရန် Endpoint
+@app.get("/get_file/{file_name}")
+def get_file(file_name: str):
+    file_path = os.path.join(DOWNLOAD_DIR, file_name)
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="video/mp4", filename=file_name)
+    return {"error": "File not found or expired"}
+
 def send_message(chat_id, text):
     try:
         requests.post(f"{BASE_URL}/sendMessage", json={"chat_id": chat_id, "text": text}, timeout=10)
     except:
         pass
+
+# သိမ်းဆည်းထားသော ဗီဒီယိုများကို ၁ နာရီပြည့်ပါက ဆာဗာနေရာလွတ်စေရန် အလိုအလျောက်ဖျက်သည့်စနစ်
+def auto_delete_file(file_path, delay=3600):
+    def delete():
+        time.sleep(delay)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"🕒 Auto deleted expired file: {file_path}", flush=True)
+    threading.Thread(target=delete, daemon=True).start()
 
 def download_and_send(chat_id, video_url):
     send_message(chat_id, "⏳ ဗီဒီယိုကို စစ်ဆေးပြီး ဒေါင်းလုဒ်လုပ်နေပါပြီ...")
@@ -57,7 +82,9 @@ def download_and_send(chat_id, video_url):
 
     # ၂။ Facebook သို့မဟုတ် TikTok ဖြစ်ပါက ဆာဗာမှ တိုက်ရိုက် (yt-dlp) စနစ်ဖြင့် ဒေါင်းခြင်း
     else:
-        filename = f"video_{chat_id}_{int(time.time())}.mp4"
+        file_id = f"video_{chat_id}_{int(time.time())}.mp4"
+        filename = os.path.join(DOWNLOAD_DIR, file_id)
+        
         ydl_opts = {
             'format': 'best[ext=mp4]/best',
             'outtmpl': filename,
@@ -72,15 +99,21 @@ def download_and_send(chat_id, video_url):
             if os.path.exists(filename):
                 file_size_mb = os.path.getsize(filename) / (1024 * 1024)
                 
-                with open(filename, 'rb') as f:
-                    # ဖိုင်ဆိုဒ် 48MB အထက်ကြီးပါက Document အနေဖြင့် ပို့ပေးခြင်း (Telegram Limits ကျော်လွှားရန်)
-                    if file_size_mb > 48:
-                        send_message(chat_id, "📦 ဗီဒီယိုဖိုင်ဆိုဒ် 50MB နီးပါးကြီးမားနေသဖြင့် ဖိုင်အမျိုးအစား (Document) အနေဖြင့် လွှဲပြောင်းပေးပို့နေပါသည်။...")
-                        requests.post(f"{BASE_URL}/sendDocument", data={'chat_id': chat_id}, files={'document': f}, timeout=180)
-                    else:
+                # ဖိုင်ဆိုဒ် 45MB ထက်ကြီးပါက Telegram API limit ကိုကျော်လွှားရန် Direct Link ပေးခြင်း
+                if file_size_mb > 45:
+                    download_url = f"{SERVER_URL}/get_file/{file_id}"
+                    msg = (
+                        f"📦 ဗီဒီယိုဖိုင်ဆိုဒ်သည် Telegram ကန့်သတ်ချက်ထက်ကျော်လွန်ပြီး {file_size_mb:.2f} MB ရှိနေပါသည်။\n\n"
+                        f"👇 အောက်ပါလင့်ခ်ကို နှိပ်ပြီး Chrome Browser မှတစ်ဆင့် အရှိန်အပြည့်ဖြင့် ဒေါင်းလုဒ်ဆွဲနိုင်ပါပြီ-\n"
+                        f"{download_url}\n\n"
+                        f"⚠️ (မှတ်ချက်။ ။ ဤလင့်ခ်သည် ၁ နာရီအတွင်းသာ အလုပ်လုပ်မည်ဖြစ်ပြီး ပြီးပါက ဆာဗာမှ Auto ပျက်သွားပါမည်။)"
+                    )
+                    send_message(chat_id, msg)
+                    auto_delete_file(filename, delay=3600) # ၁ နာရီကြာလျှင် ဖျက်ရန်
+                else:
+                    with open(filename, 'rb') as f:
                         requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id}, files={'video': f}, timeout=120)
-                        
-                os.remove(filename)
+                    os.remove(filename)
             else:
                 send_message(chat_id, "❌ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲ၍ မရပါ။ လင့်ခ်မှားယွင်းနေနိုင်ပါသည်။")
         except Exception as e:
