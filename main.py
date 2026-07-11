@@ -23,7 +23,7 @@ BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 SERVER_URL = "https://hhs-zlhu.onrender.com" 
 
 OWNER_ID = 8391123176  # <--- လူကြီးမင်း (Owner) ရဲ့ ID အမှန်
-ADMIN_IDS = [6622954461,]  # <--- မိမိ ID နှင့် ပါတနာ အက်ဒမင် ID များ
+ADMIN_IDS = [8391123176, 573829102]  # <--- မိမိ ID နှင့် ပါတနာ အက်ဒမင် ID များ
 
 DEFAULT_AD = "📢 <b>[ကြော်ငြာ]</b> မြန်မာနိုင်ငံ၏ ယုံကြည်စိတ်ချရဆုံး အွန်လိုင်းစျေးဝယ်ပလက်ဖောင်းကို အသုံးပြုရန် ဤနေရာကိုနှိပ်ပါ"
 
@@ -214,7 +214,7 @@ def bot_polling():
                                 msg = (
                                     f"⚠️ <b>HD ဗီဒီယို ဒေါင်းလုဒ်ဆွဲရန်မှာ ပရီမီယမ်များအတွက်သာ ဖြစ်ပါသည်။</b>\n\n"
                                     f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
-                                    f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latt)\n"
+                                    f"• KPay နံပါတ်: <code>09123456789</code> (U Mya)\n"
                                     f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀၀ ကျပ်\n\n"
                                     f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
                                 )
@@ -284,7 +284,36 @@ def bot_polling():
                                 payload = {"chat_id": current_admin, "photo": file_id, "caption": f"📩 <b>User ထံမှ စလစ် ရောက်လာပါသည်-</b>\n• နာမည်: <b>{first_name}</b>\n• Chat ID: <code>{chat_id}</code>\n• Username: @{username}\n\n<i>မှတ်ချက်- ပရီမီယမ်သက်တမ်းတိုးရန် ဤ User အတွက် /gen ကိုသုံး၍ ကုဒ်ထုတ်ပေးလိုက်ပါဗျာ။</i>", "parse_mode": "HTML"}
                                 requests.post(f"{BASE_URL}/sendPhoto", json=payload)
                             send_message(chat_id, f"📥 <b>{first_name}</b> ရေ... သင်၏ ငွေလွှဲစလစ်ပုံကို လက်ခံရရှိပါပြီ။ Admin မှ စစ်ဆေးပြီး ပရီမီယမ်ကုဒ် လာပေးပါလိမ့်မည်။ ခေတ္တစောင့်ဆိုင်းပေးပါဦးဗျာ...")
-                            continue
+                            continue 
+                            
+                                                # 📩 Admin မှ Reply ပြန်လျှင် Customer ဆီသို့ စာလှမ်းပို့ပေးမည့် စနစ်
+                        if chat_id in ADMIN_IDS and "reply_to_message" in msg_data:
+                            reply_to = msg_data["reply_to_message"]
+                            # Reply ပြန်ထားတဲ့ စာသားထဲမှာ Chat ID ပါမပါ စစ်ဆေးခြင်း
+                            if "caption" in reply_to and "Chat ID:" in reply_to["caption"]:
+                                try:
+                                    # Caption ထဲကနေ Customer ရဲ့ Chat ID ကို လှမ်းထုတ်ယူခြင်း
+                                    lines = reply_to["caption"].split("\n")
+                                    customer_id = None
+                                    for line in lines:
+                                        if "Chat ID:" in line:
+                                            customer_id = int(line.split("Chat ID:")[1].strip().replace("<code>", "").replace("</code>", ""))
+                                            break
+                                    
+                                    if customer_id:
+                                        if "text" in msg_data:
+                                            send_message(customer_id, f"✉️ <b>Admin ထံမှ အကြောင်းပြန်စာ-</b>\n\n{msg_data['text']}")
+                                            send_message(chat_id, "✅ Customer ထံသို့ စာပို့ဆောင်ပြီးပါပြီ။")
+                                        elif "photo" in msg_data:
+                                            # အကယ်၍ Admin က စာအပြင် ပုံပါတွဲပို့ချင်ရင် (ဥပမာ- Code ပုံ)
+                                            file_id = msg_data["photo"][-1]["file_id"]
+                                            caption_text = msg_data.get("caption", "")
+                                            payload = {"chat_id": customer_id, "photo": file_id, "caption": f"✉️ <b>Admin ထံမှ အကြောင်းပြန်စာ-</b>\n\n{caption_text}", "parse_mode": "HTML"}
+                                            requests.post(f"{BASE_URL}/sendPhoto", json=payload)
+                                            send_message(chat_id, "✅ Customer ထံသို့ ဓာတ်ပုံ ပို့ဆောင်ပြီးပါပြီ။")
+                                        continue
+                                except Exception as e:
+                                    send_message(chat_id, f"❌ စာပို့၍မရပါ (Error: {str(e)})")
 
                         if "text" in msg_data:
                             text = msg_data["text"].strip()
@@ -485,7 +514,7 @@ def bot_polling():
                                     msg = (
                                         f"⚠️ <b>{first_name}</b>... <b>Free ဗားရှင်းတွင် (၅) မိနစ်အောက် ဗီဒီယိုများကိုသာ ခွင့်ပြုပါသည်။</b>\n\n"
                                         f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
-                                        f"• KPay နံ接တ်: <code>09123456789</code> (U Mya)\n"
+                                        f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latta)\n"
                                         f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀၀ ကျပ်\n\n"
                                         f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
                                     )
