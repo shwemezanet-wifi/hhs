@@ -251,8 +251,8 @@ def bot_polling():
                         if cb_data.startswith("reject_"):
                             parts = cb_data.split("_")
                             agent_id = int(parts[1])
-                            answer_callback_query(cb_id, "❌ တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။")
-                            edit_message(chat_id, msg_id, f"❌ <b>အေးဂျင့် ID: {agent_id} ၏ တောင်းခံမှုကို သင်က ငြင်းပယ်လိုက်ပါသည်။</b>")
+                            answer_callback_query(cb_id, "❌ တောင်းခံမှုကို Ngengပယ်လိုက်ပါပြီ။")
+                            edit_message(chat_id, msg_id, f"❌ <b>အေးဂျင့် ID: {agent_id} ၏ တောင်းခံမှုကို သင်က Ngengပယ်လိုက်ပါသည်။</b>")
                             send_message(agent_id, "❌ <b>ဆောရီးဗျာ!</b>\n\nသင်တောင်းဆိုထားသော ပရီမီယမ်ကုဒ် ထုတ်ခွင့်ကို ပိုင်ရှင် (Owner) မှ <b>ငြင်းပယ် (Reject)</b> လိုက်ပါသဖြင့် ကုဒ်မထွက်လာပါ။")
                             continue
                         continue
@@ -429,24 +429,20 @@ def bot_polling():
                                 continue
 
                             # 🕴️ အေးဂျင့် သို့မဟုတ် အက်ဒမင်များအတွက် သီးသန့် ID ထုတ်ပေးရန် Command
-                            # 🕴️ အေးဂျင့် သို့မဟုတ် အက်ဒမင်များအတွက် သီးသန့် ID ထုတ်ပေးရန် Command
                             if text.lower() == '/agent' or text.lower() == '/admin':
                                 agent_msg = (
-                                 f"👑 <b>Agent/Admin Dashboard Setup</b>\n\n"
-                                 f"လူကြီးမင်း၏ အေးဂျင့်အကောင့် သို့မဟုတ် အက်ဒမင်အကောင့် ပြုလုပ်ရန်အတွက် အောက်ပါ Chat ID နံပါတ်ကို ကော်ပီကူး၍ အက်ဒမင်ထံ ပေးပို့ပေးပါဗျာ။\n\n"
-                                 f"🔑 သင့်ရဲ Chat ID: <code>{chat_id}</code>\n\n"
-                                 f"_(စာလုံးအပြာရောင်လေးကို ဖိနှိပ်ပြီး အလွယ်တကူ Copy ကူးနိုင်ပါသည်)_"
-                               )
-                               send_message(chat_id, agent_msg)
+                                    f"👑 <b>Agent/Admin Dashboard Setup</b>\n\n"
+                                    f"လူကြီးမင်း၏ အေးဂျင့်အကောင့် သို့မဟုတ် အက်ဒမင်အကောင့် ပြုလုပ်ရန်အတွက် အောက်ပါ Chat ID နံပါတ်ကို ကော်ပီကူး၍ အက်ဒမင်ထံ ပေးပို့ပေးပါဗျာ။\n\n"
+                                    f"🔑 သင့်ရဲ Chat ID: <code>{chat_id}</code>\n\n"
+                                    f"_(စာလုံးအပြာရောင်လေးကို ဖိနှိပ်ပြီး အလွယ်တကူ Copy ကူးနိုင်ပါသည်)_"
+                                )
+                                send_message(chat_id, agent_msg)
                                 continue
-
 
                             # 👥 ၅။ Start Message နှုတ်ဆက်ခြင်းနှင့် နာမည်ခေါ်ခြင်း၊ Referral မှတ်သားခြင်း
                             if text.startswith('/start'):
                                 db = load_data()
-                   
-
-
+                                
                                 # မိတ်ဆက်လင့်ခ်မှ တဆင့် ဝင်လာခြင်း ဟုတ်/မဟုတ် စစ်ဆေးခြင်း
                                 if len(text.split()) > 1:
                                     start_param = text.split()[1]
@@ -489,7 +485,7 @@ def bot_polling():
                                     msg = (
                                         f"⚠️ <b>{first_name}</b>... <b>Free ဗားရှင်းတွင် (၅) မိနစ်အောက် ဗီဒီယိုများကိုသာ ခွင့်ပြုပါသည်။</b>\n\n"
                                         f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
-                                        f"• KPay နံပါတ်: <code>09123456789</code> (U Mya)\n"
+                                        f"• KPay နံ接တ်: <code>09123456789</code> (U Mya)\n"
                                         f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀၀ ကျပ်\n\n"
                                         f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
                                     )
