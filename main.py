@@ -431,7 +431,19 @@ def bot_polling():
                             # 👥 ၅။ Start Message နှုတ်ဆက်ခြင်းနှင့် နာမည်ခေါ်ခြင်း၊ Referral မှတ်သားခြင်း
                             if text.startswith('/start'):
                                 db = load_data()
-                                
+                   
+
+                            # 🕴️ အေးဂျင့် သို့မဟုတ် အက်ဒမင်များအတွက် သီးသန့် ID ထုတ်ပေးရန် Command
+                            if text == '/agent' or text == '/admin':
+                               agent_msg = (
+                                 f"👑 <b>Agent/Admin Dashboard Setup</b>\n\n"
+                                 f"လူကြီးမင်း၏ အေးဂျင့်အကောင့် သို့မဟုတ် အက်ဒမင်အကောင့် ပြုလုပ်ရန်အတွက် အောက်ပါ Chat ID နံပါတ်ကို ကော်ပီကူး၍ အက်ဒမင်ထံ ပေးပို့ပေးပါဗျာ။\n\n"
+                                 f"🔑 သင့်ရဲ Chat ID: <code>{chat_id}</code>\n\n"
+                                 f"_(စာလုံးအပြာရောင်လေးကို ဖိနှိပ်ပြီး အလွယ်တကူ Copy ကူးနိုင်ပါသည်)_"
+                               )
+                               send_message(chat_id, agent_msg)
+                                continue
+
                                 # မိတ်ဆက်လင့်ခ်မှ တဆင့် ဝင်လာခြင်း ဟုတ်/မဟုတ် စစ်ဆေးခြင်း
                                 if len(text.split()) > 1:
                                     start_param = text.split()[1]
