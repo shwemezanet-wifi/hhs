@@ -429,8 +429,9 @@ def bot_polling():
                                 continue
 
                             # 🕴️ အေးဂျင့် သို့မဟုတ် အက်ဒမင်များအတွက် သီးသန့် ID ထုတ်ပေးရန် Command
-                            if text == '/agent' or text == '/admin':
-                               agent_msg = (
+                            # 🕴️ အေးဂျင့် သို့မဟုတ် အက်ဒမင်များအတွက် သီးသန့် ID ထုတ်ပေးရန် Command
+                            if text.lower() == '/agent' or text.lower() == '/admin':
+                                agent_msg = (
                                  f"👑 <b>Agent/Admin Dashboard Setup</b>\n\n"
                                  f"လူကြီးမင်း၏ အေးဂျင့်အကောင့် သို့မဟုတ် အက်ဒမင်အကောင့် ပြုလုပ်ရန်အတွက် အောက်ပါ Chat ID နံပါတ်ကို ကော်ပီကူး၍ အက်ဒမင်ထံ ပေးပို့ပေးပါဗျာ။\n\n"
                                  f"🔑 သင့်ရဲ Chat ID: <code>{chat_id}</code>\n\n"
