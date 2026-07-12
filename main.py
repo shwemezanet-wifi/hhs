@@ -111,6 +111,12 @@ def answer_callback_query(callback_query_id, text, show_alert=False):
     try: requests.post(f"{BASE_URL}/answerCallbackQuery", json=payload, timeout=10)
     except: pass
 
+def edit_message_caption(chat_id, message_id, caption, reply_markup=None):
+    payload = {"chat_id": chat_id, "message_id": message_id, "caption": caption, "parse_mode": "HTML"}
+    if reply_markup is not None: payload["reply_markup"] = json.dumps(reply_markup)
+    try: requests.post(f"{BASE_URL}/editMessageCaption", json=payload, timeout=10)
+    except: pass
+
 def auto_delete_file(file_path, delay=3600):
     def delete():
         time.sleep(delay)
@@ -267,6 +273,41 @@ def bot_polling():
                             edit_message(chat_id, msg_id, f"❌ <b>အေးဂျင့် ID: {agent_id} ၏ တောင်းခံမှုကို သင်က Ngengပယ်လိုက်ပါသည်။</b>")
                             send_message(agent_id, "❌ <b>ဆောရီးဗျာ!</b>\n\nသင်တောင်းဆိုထားသော ပရီမီယမ်ကုဒ် ထုတ်ခွင့်ကို ပိုင်ရှင် (Owner) မှ <b>ငြင်းပယ် (Reject)</b> လိုက်ပါသဖြင့် ကုဒ်မထွက်လာပါ။")
                             continue
+
+                        # 📲 Live Chat Check Status Callback Handling
+                        if cb_data.startswith("check_start_"):
+                            parts = cb_data.split("_")
+                            cust_id = parts[2]
+                            c_name = parts[3] if len(parts) > 3 else "User"
+                            answer_callback_query(cb_id, "⚙️ သင် ဤစလစ်ကို စစ်ဆေးနေပါသည်...")
+                            
+                            updated_keyboard = {
+                                "inline_keyboard": [
+                                    [{"text": "✅ ကုဒ်ပေးပြီးပြီ (Done)", "callback_data": f"check_done_{cust_id}_{c_name}"}]
+                                ]
+                            }
+                            # မူလပုံရဲ့ Caption ကိုပဲ ပြောင်းလဲပြီး ခလုတ်ကို Update လုပ်ခြင်း
+                            orig_caption = cb["message"].get("caption", "")
+                            if "📊 အခြေအနေ:" in orig_caption:
+                                new_caption = orig_caption.split("📊 အခြေအနေ:")[0] + f"📊 <b>အခြေအနေ:</b> စစ်ဆေးနေဆဲ 🟡"
+                            else:
+                                new_caption = orig_caption + f"\n\n📊 <b>အခြေအနေ:</b> စစ်ဆေးနေဆဲ 🟡"
+                            edit_message_caption(chat_id, msg_id, new_caption, reply_markup=updated_keyboard)
+                            continue
+                            
+                        if cb_data.startswith("check_done_"):
+                            parts = cb_data.split("_")
+                            cust_id = parts[2]
+                            c_name = parts[3] if len(parts) > 3 else "User"
+                            answer_callback_query(cb_id, "✅ ပြီးဆုံးကြောင်း မှတ်သားပြီးပါပြီ။")
+                            
+                            orig_caption = cb["message"].get("caption", "")
+                            if "📊 အခြေအနေ:" in orig_caption:
+                                new_caption = orig_caption.split("📊 အခြေအနေ:")[0] + f"📊 <b>အခြေအနေ:</b> စစ်ဆေးပြီး/အောင်မြင် ✅"
+                            else:
+                                new_caption = orig_caption + f"\n\n📊 <b>အခြေအနေ:</b> စစ်ဆေးပြီး/အောင်မြင် ✅"
+                            edit_message_caption(chat_id, msg_id, new_caption, reply_markup={"inline_keyboard": []})
+                            continue
                         continue
 
                     # ✉️ Message Handling
@@ -284,27 +325,64 @@ def bot_polling():
                             db["all_users"].append(chat_id)
                             save_data(db)
 
-                        # Admin Forward Ads
-                        if chat_id in ADMIN_IDS and ("video" in msg_data or "audio" in msg_data or "voice" in msg_data or "animation" in msg_data or ("photo" in msg_data and "reply_to_message" not in msg_data)):
+                        # Admin Forward Ads (အက်ဒမင် ဓာတ်ပုံပို့လျှင် ကြော်ငြာအဖြစ် မသတ်မှတ်တော့ရန် photo အား ဖြုတ်လိုက်ခြင်း)
+                        if chat_id in ADMIN_IDS and ("video" in msg_data or "audio" in msg_data or "voice" in msg_data or "animation" in msg_data):
                             threading.Thread(target=broadcast_forward_process, args=(chat_id, chat_id, message_id)).start()
                             continue
 
-                        # User Screenshot Slip
-                        if "photo" in msg_data and chat_id not in ADMIN_IDS:
+                        # User Screenshot Slip (Live Chat & Check Status System)
+                        if "photo" in msg_data and int(chat_id) not in ADMIN_IDS and chat_id not in ADMIN_IDS:
                             file_id = msg_data["photo"][-1]["file_id"]
+                            
+                            # ဘေးကင်းအောင် စာလုံးအချို့ ဖယ်ရှားရှင်းလင်းရန်
+                            clean_name = first_name.replace("_", "").replace("-", "")
+                            
+                            check_keyboard = {
+                                "inline_keyboard": [
+                                    [
+                                        {"text": "⏳ မစစ်ရသေး (စစ်မည်)", "callback_data": f"check_start_{chat_id}_{clean_name}"},
+                                        {"text": "✅ ကုဒ်ပေးပြီးပြီ", "callback_data": f"check_done_{chat_id}_{clean_name}"}
+                                    ]
+                                ]
+                            }
+                            
+                            # အက်ဒမင်အားလုံးဆီ ပို့ဆောင်ခြင်း
                             for current_admin in ADMIN_IDS:
-                                payload = {"chat_id": current_admin, "photo": file_id, "caption": f"📩 <b>User ထံမှ စလစ် ရောက်လာပါသည်-</b>\n• နာမည်: <b>{first_name}</b>\n• Chat ID: <code>{chat_id}</code>\n• Username: @{username}\n\n<i>မှတ်ချက်- ပရီမီယမ်သက်တမ်းတိုးရန် ဤ User အတွက် /gen ကိုသုံး၍ ကုဒ်ထုတ်ပေးလိုက်ပါဗျာ။</i>", "parse_mode": "HTML"}
-                                requests.post(f"{BASE_URL}/sendPhoto", json=payload)
+                                try:
+                                    admin_target = int(current_admin)
+                                    payload = {
+                                        "chat_id": admin_target, 
+                                        "photo": file_id, 
+                                        "caption": f"📩 <b>User ထံမှ စလစ် ရောက်လာပါသည်-</b>\n• နာမည်: <b>{first_name}</b>\n• Chat ID: <code>{chat_id}</code>\n• Username: @{username}\n\n📊 <b>အခြေအနေ:</b> မစစ်ဆေးရသေးပါ ❌\n\n<i>မှတ်ချက်- ပရီမီယမ်သက်တမ်းတိုးရန် ဤ User အတွက် /gen ကိုသုံး၍ ကုဒ်ထုတ်ပေးလိုက်ပါဗျာ။</i>", 
+                                        "parse_mode": "HTML",
+                                        "reply_markup": json.dumps(check_keyboard)
+                                    }
+                                    requests.post(f"{BASE_URL}/sendPhoto", json=payload, timeout=10)
+                                except Exception as e:
+                                    print(f"Error sending to admin {current_admin}: {e}", flush=True)
+                                    
+                            # Owner (လူကြီးမင်း) ဆီသို့ပါ သီးသန့် ကွက်တိရောက်ရှိစေရန်
+                            if int(OWNER_ID) not in ADMIN_IDS and OWNER_ID not in ADMIN_IDS:
+                                try:
+                                    payload_owner = {
+                                        "chat_id": int(OWNER_ID),
+                                        "photo": file_id,
+                                        "caption": f"📩 <b>[OWNER] User ထံမှ စလစ် ရောက်လာပါသည်-</b>\n• နာမည်: <b>{first_name}</b>\n• Chat ID: <code>{chat_id}</code>\n• Username: @{username}\n\n📊 <b>အခြေအနေ:</b> မစစ်ဆေးရသေးပါ ❌",
+                                        "parse_mode": "HTML",
+                                        "reply_markup": json.dumps(check_keyboard)
+                                    }
+                                    requests.post(f"{BASE_URL}/sendPhoto", json=payload_owner, timeout=10)
+                                except Exception as e:
+                                    print(f"Error sending to owner: {e}", flush=True)
+
                             send_message(chat_id, f"📥 <b>{first_name}</b> ရေ... သင်၏ ငွေလွှဲစလစ်ပုံကို လက်ခံရရှိပါပြီ။ Admin မှ စစ်ဆေးပြီး ပရီမီယမ်ကုဒ် လာပေးပါလိမ့်မည်။ ခေတ္တစောင့်ဆိုင်းပေးပါဦးဗျာ...")
                             continue 
                             
-                                                # 📩 Admin မှ Reply ပြန်လျှင် Customer ဆီသို့ စာလှမ်းပို့ပေးမည့် စနစ်
-                        if chat_id in ADMIN_IDS and "reply_to_message" in msg_data:
+                        # 📩 Admin မှ Reply ပြန်လျှင် Customer ဆီသို့ စာလှမ်းပို့ပေးမည့် စနစ်
+                        if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and "reply_to_message" in msg_data:
                             reply_to = msg_data["reply_to_message"]
-                            # Reply ပြန်ထားတဲ့ စာသားထဲမှာ Chat ID ပါမပါ စစ်ဆေးခြင်း
                             if "caption" in reply_to and "Chat ID:" in reply_to["caption"]:
                                 try:
-                                    # Caption ထဲကနေ Customer ရဲ့ Chat ID ကို လှမ်းထုတ်ယူခြင်း
                                     lines = reply_to["caption"].split("\n")
                                     customer_id = None
                                     for line in lines:
@@ -317,7 +395,6 @@ def bot_polling():
                                             send_message(customer_id, f"✉️ <b>Admin ထံမှ အကြောင်းပြန်စာ-</b>\n\n{msg_data['text']}")
                                             send_message(chat_id, "✅ Customer ထံသို့ စာပို့ဆောင်ပြီးပါပြီ။")
                                         elif "photo" in msg_data:
-                                            # အကယ်၍ Admin က စာအပြင် ပုံပါတွဲပို့ချင်ရင် (ဥပမာ- Code ပုံ)
                                             file_id = msg_data["photo"][-1]["file_id"]
                                             caption_text = msg_data.get("caption", "")
                                             payload = {"chat_id": customer_id, "photo": file_id, "caption": f"✉️ <b>Admin ထံမှ အကြောင်းပြန်စာ-</b>\n\n{caption_text}", "parse_mode": "HTML"}
@@ -331,7 +408,7 @@ def bot_polling():
                             text = msg_data["text"].strip()
                             
                             # 🤝 ၁။ Admin မှ Reseller အသစ်ထည့်သွင်းခြင်း (/add_agent [Chat_ID])
-                            if chat_id in ADMIN_IDS and text.startswith("/add_agent "):
+                            if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and text.startswith("/add_agent "):
                                 try:
                                     target_id = text.split()[1].strip()
                                     db = load_data()
@@ -368,7 +445,7 @@ def bot_polling():
                                 continue
 
                             # 🔑 ၃။ အက်ဒမင်များ ကုဒ်ထုတ်ခြင်း (/gen week [အရေအတွက်])
-                            if chat_id in ADMIN_IDS and text.startswith("/gen"):
+                            if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and text.startswith("/gen"):
                                 parts = text.split()
                                 if len(parts) < 2 or parts[1].lower() not in ["week", "month", "year"]:
                                     send_message(chat_id, "❌ ပုံစံမှားနေပါသည်။ အောက်ပါအတိုင်း ရိုက်ပါ-\n• <code>/gen week</code> (၁ ကုဒ်ထုတ်ရန်)\n• <code>/gen week 10</code> (၁၀ ကုဒ် တစ်ပြိုင်တည်းထုတ်ရန်)")
@@ -380,7 +457,7 @@ def bot_polling():
                                     try: count = int(parts[2])
                                     except: count = 1
                                 
-                                if chat_id == OWNER_ID:
+                                if int(chat_id) == OWNER_ID:
                                     db = load_data()
                                     generated_codes_list = []
                                     for _ in range(count):
@@ -454,7 +531,7 @@ def bot_polling():
                                     send_message(chat_id, f"❌ <b>{first_name}</b>... သင်ရိုက်ထည့်လိုက်သော ကုဒ် မမှန်ကန်ပါ သို့မဟုတ် အသုံးပြုပြီးသား ဖြစ်နေပါသည်။")
                                 continue
 
-                            if chat_id in ADMIN_IDS and text.startswith("/setad "):
+                            if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and text.startswith("/setad "):
                                 new_ad = text.replace("/setad ", "", 1)
                                 if new_ad:
                                     db = load_data()
@@ -463,7 +540,7 @@ def bot_polling():
                                     send_message(chat_id, f"✅ <b>Inline Ad ပြောင်းလဲပြီးပါပြီ!</b>")
                                 continue
 
-                            if chat_id in ADMIN_IDS and text.startswith("/ad "):
+                            if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and text.startswith("/ad "):
                                 ad_content = text.replace("/ad ", "", 1)
                                 if ad_content:
                                     threading.Thread(target=broadcast_forward_process, args=(chat_id, chat_id, message_id)).start()
@@ -500,14 +577,14 @@ def bot_polling():
                                     f"🎫 <b>ပရီမီယမ်ကုဒ်ရှိပါက -</b> <code>/redeem မိမိကုဒ်</code> ဟုရိုက်ထည့်ပါ။\n"
                                     f"━━━━━━━━━━━━━━━━━━━━\n"
                                     f"🎬 Free အသုံးပြုသူများ (240p):\n• (၅) မိနစ်အောက် ဗီဒီယိုတိုများကို အခမဲ့ အကန့်အသတ်မရှိ ရယူနိုင်ပါသည်။\n\n"
-                                    f"💎 Premium အဖွဲ့ဝင်များ (480p / 720p HD):\n• မိနစ်ရှည် ဗီဒီယိုကြီးများနှင့် ပိုမိုကြည်လင်ပြတ်သားသော HD ကွာလတီများကို စိတ်ကြိုက် ရယူနိုင်ပါသည်။\n"
+                                    f"💎 Premium အဖွဲ့ဝင်များ (480p / 720p HD):\n• မိနစ်ရှည် ဗီဒီယိုကြီးများနှင့် ပိုမိုကြည်လင်ပြတ်သားသော HD ကွာလတီများကို စိုက်ကြိုက် ရယူနိုင်ပါသည်။\n"
                                     f"━━━━━━━━━━━━━━━━━━━━\n\n"
                                     f"🚀 ဗီဒီယိုလင့်ခ်ကို ဤနေရာတွင် တန်းပို့ပေးလိုက်ပါဗျာ..."
                                 )
                                 send_message(chat_id, welcome_msg)
                                 continue
                                 
-                            elif text == '/usercount' and chat_id in ADMIN_IDS:
+                            elif text == '/usercount' and (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID):
                                 db = load_data()
                                 total = len(db.get("all_users", []))
                                 prem_count = sum(1 for uid, exp in db.get("premium_users", {}).items() if time.time() < exp)
@@ -527,7 +604,7 @@ def bot_polling():
                                         f"⚠️ <b>{first_name}</b>... <b>Free ဗားရှင်းတွင် (၅) မိနစ်အောက် ဗီဒီယိုများကိုသာ ခွင့်ပြုပါသည်။</b>\n\n"
                                         f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
                                         f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latta)\n"
-                                        f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀၀ ကျပ်\n\n"
+                                        f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀0 ကျပ်\n\n"
                                         f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
                                     )
                                     send_message(chat_id, msg)
@@ -555,3 +632,4 @@ if __name__ == '__main__':
     threading.Thread(target=bot_polling, daemon=True).start()
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
