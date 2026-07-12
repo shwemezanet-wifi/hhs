@@ -23,9 +23,9 @@ BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 SERVER_URL = "https://hhs-zlhu.onrender.com" 
 
 OWNER_ID = 8391123176  # <--- လူကြီးမင်း (Owner) ရဲ့ ID အမှန်
-ADMIN_IDS = [8391123176, 573829102]  # <--- မိမိ ID နှင့် ပါတနာ အက်ဒမင် ID များ
+ADMIN_IDS = [6622954461, ]  # <--- မိမိ ID နှင့် ပါတနာ အက်ဒမင် ID များ
 
-DEFAULT_AD = "📢 <b>[ကြော်ငြာ]</b> မြန်မာနိုင်ငံ၏ ယုံကြည်စိတ်ချရဆုံး အွန်လိုင်းစျေးဝယ်ပလက်ဖောင်းကို အသုံးပြုရန် ဤနေရာကိုနှိပ်ပါ"
+DEFAULT_AD = "📢 <b>[ကြော်ငြာ]</b> မင်္ဂလာပါ"
 
 DOWNLOAD_DIR = "downloads"
 if not os.path.exists(DOWNLOAD_DIR):
@@ -59,13 +59,25 @@ def save_data(data):
         json.dump(data, f, indent=4)
 
 def is_premium(chat_id):
+    # အက်ဒမင်များကို အမြဲတမ်း ပရီမီယမ်ပေးထားရန်
+    if int(chat_id) in ADMIN_IDS or chat_id in ADMIN_IDS:
+        return True, time.time() + 315360000
+        
     db = load_data()
     premiums = db.get("premium_users", {})
+    
+    # စာသားရော ဂဏန်းပါ ဝင်လာသမျှ Chat ID အားလုံးကို မှန်မှန်ကန်ကန် စစ်ဆေးရန်
     uid = str(chat_id)
     if uid in premiums:
         expire_time = premiums[uid]
         if time.time() < expire_time:
             return True, expire_time
+            
+    if isinstance(chat_id, int) and str(chat_id) in premiums:
+        expire_time = premiums[str(chat_id)]
+        if time.time() < expire_time:
+            return True, expire_time
+            
     return False, 0
 
 @app.get("/")
@@ -214,7 +226,7 @@ def bot_polling():
                                 msg = (
                                     f"⚠️ <b>HD ဗီဒီယို ဒေါင်းလုဒ်ဆွဲရန်မှာ ပရီမီယမ်များအတွက်သာ ဖြစ်ပါသည်။</b>\n\n"
                                     f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
-                                    f"• KPay နံပါတ်: <code>09123456789</code> (U Mya)\n"
+                                    f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latt)\n"
                                     f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀၀ ကျပ်\n\n"
                                     f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
                                 )
