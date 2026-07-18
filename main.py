@@ -59,14 +59,12 @@ def save_data(data):
         json.dump(data, f, indent=4)
 
 def is_premium(chat_id):
-    # အက်ဒမင်များကို အမြဲတမ်း ပရီမီယမ်ပေးထားရန်
     if int(chat_id) in ADMIN_IDS or chat_id in ADMIN_IDS:
         return True, time.time() + 315360000
         
     db = load_data()
     premiums = db.get("premium_users", {})
     
-    # စာသားရော ဂဏန်းပါ ဝင်လာသမျှ Chat ID အားလုံးကို မှန်မှန်ကန်ကန် စစ်ဆေးရန်
     uid = str(chat_id)
     if uid in premiums:
         expire_time = premiums[uid]
@@ -124,7 +122,12 @@ def auto_delete_file(file_path, delay=3600):
     threading.Thread(target=delete, daemon=True).start()
 
 def get_video_duration(video_url):
-    ydl_opts = {'quiet': True, 'nocheckcertificate': True}
+    # ကမ္ဘာလုံးဆိုင်ရာ Social Media အားလုံးအတွက် User-Agent ကို Desktop Browser အဖြစ် ဟန်ဆောင်ပြီး အချက်အလက်ယူခြင်း
+    ydl_opts = {
+        'quiet': True, 
+        'nocheckcertificate': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=False)
@@ -137,7 +140,7 @@ def raw_download_process(chat_id, video_url, target_quality, status_msg_id):
     elif target_quality == "480p":
         format_selector = "bestvideo[height<=480]+bestaudio/best"
     else:
-        format_selector = "worst/worstvideo+worstaudio/best[height<=240]"
+        format_selector = "worst/worstvideo+worstaudio/best"
         
     file_id = f"video_{chat_id}_{int(time.time())}.mp4"
     filename = os.path.join(DOWNLOAD_DIR, file_id)
@@ -145,10 +148,11 @@ def raw_download_process(chat_id, video_url, target_quality, status_msg_id):
     ydl_opts = {
         'format': format_selector,
         'outtmpl': filename,
-        'timeout': 60,
+        'timeout': 90,
         'nocheckcertificate': True,
         'quiet': True,
-        'merge_output_format': 'mp4'
+        'merge_output_format': 'mp4',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
     try:
@@ -170,7 +174,7 @@ def raw_download_process(chat_id, video_url, target_quality, status_msg_id):
                     requests.post(f"{BASE_URL}/sendVideo", data={'chat_id': chat_id, 'caption': ad_text, 'parse_mode': 'HTML'}, files={'video': f}, timeout=120)
                 os.remove(filename)
         else: 
-            edit_message(chat_id, status_msg_id, "❌ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲ၍ မရပါ။ လင့်ခ်မှားယွင်းနေခြင်း ဖြစ်နိုင်ပါသည်။")
+            edit_message(chat_id, status_msg_id, "❌ ဗီဒီယို ဒေါင်းလုဒ်ဆွဲ၍ မရပါ။ လင့်ခ်မှားယွင်းနေခြင်း သို့မဟုတ် ဗီဒီယိုကို ပိတ်ထားခြင်း ဖြစ်နိုင်ပါသည်။")
     except Exception as e:
         edit_message(chat_id, status_msg_id, "❌ ဒေါင်းလုဒ်လုပ်ရတာ အဆင်မပြေပါ။ ခေတ္တစောင့်ပြီးမှ ပြန်ပို့ပေးပါ။")
         if os.path.exists(filename): os.remove(filename)
@@ -212,7 +216,6 @@ def bot_polling():
                 for update in response["result"]:
                     offset = update["update_id"] + 1
                     
-                    # 📩 Callback Query ကိုကိုင်တွယ်ခြင်း
                     if "callback_query" in update:
                         cb = update["callback_query"]
                         cb_id = cb["id"]
@@ -233,7 +236,7 @@ def bot_polling():
                                     f"⚠️ <b>HD ဗီဒီယို ဒေါင်းလုဒ်ဆွဲရန်မှာ ပရီမီယမ်များအတွက်သာ ဖြစ်ပါသည်။</b>\n\n"
                                     f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
                                     f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latt)\n"
-                                    f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀၀ ကျပ်\n\n"
+                                    f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁  နှစ်စာ ၄၅၀၀၀ ကျပ်\n\n"
                                     f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
                                 )
                                 send_message(chat_id, msg)
@@ -244,7 +247,6 @@ def bot_polling():
                             download_queue.put((chat_id, v_url, selected_q, msg_id))
                             continue
 
-                        # 👑 Owner Approval Handling
                         if cb_data.startswith("approve_"):
                             parts = cb_data.split("_")
                             agent_id = int(parts[1])
@@ -269,12 +271,11 @@ def bot_polling():
                         if cb_data.startswith("reject_"):
                             parts = cb_data.split("_")
                             agent_id = int(parts[1])
-                            answer_callback_query(cb_id, "❌ တောင်းခံမှုကို Ngengပယ်လိုက်ပါပြီ။")
+                            answer_callback_query(cb_id, "❌ တောင်းခံမှုကို ငြင်းပယ်လိုက်ပါပြီ။")
                             edit_message(chat_id, msg_id, f"❌ <b>အေးဂျင့် ID: {agent_id} ၏ တောင်းခံမှုကို သင်က Ngengပယ်လိုက်ပါသည်။</b>")
                             send_message(agent_id, "❌ <b>ဆောရီးဗျာ!</b>\n\nသင်တောင်းဆိုထားသော ပရီမီယမ်ကုဒ် ထုတ်ခွင့်ကို ပိုင်ရှင် (Owner) မှ <b>ငြင်းပယ် (Reject)</b> လိုက်ပါသဖြင့် ကုဒ်မထွက်လာပါ။")
                             continue
 
-                        # 📲 Live Chat Check Status Callback Handling
                         if cb_data.startswith("check_start_"):
                             parts = cb_data.split("_")
                             cust_id = parts[2]
@@ -286,7 +287,6 @@ def bot_polling():
                                     [{"text": "✅ ကုဒ်ပေးပြီးပြီ (Done)", "callback_data": f"check_done_{cust_id}_{c_name}"}]
                                 ]
                             }
-                            # မူလပုံရဲ့ Caption ကိုပဲ ပြောင်းလဲပြီး ခလုတ်ကို Update လုပ်ခြင်း
                             orig_caption = cb["message"].get("caption", "")
                             if "📊 အခြေအနေ:" in orig_caption:
                                 new_caption = orig_caption.split("📊 အခြေအနေ:")[0] + f"📊 <b>အခြေအနေ:</b> စစ်ဆေးနေဆဲ 🟡"
@@ -310,13 +310,11 @@ def bot_polling():
                             continue
                         continue
 
-                    # ✉️ Message Handling
                     if "message" in update:
                         msg_data = update["message"]
                         chat_id = msg_data["chat"]["id"]
                         message_id = msg_data["message_id"]
                         
-                        # 👤 User အချက်အလက်များရယူခြင်း (နာမည်ခေါ်ရန်)
                         first_name = msg_data["from"].get("first_name", "အသုံးပြုသူ")
                         username = msg_data["from"].get("username", "No_Username")
                         
@@ -325,16 +323,12 @@ def bot_polling():
                             db["all_users"].append(chat_id)
                             save_data(db)
 
-                        # Admin Forward Ads (အက်ဒမင် ဓာတ်ပုံပို့လျှင် ကြော်ငြာအဖြစ် မသတ်မှတ်တော့ရန် photo အား ဖြုတ်လိုက်ခြင်း)
                         if chat_id in ADMIN_IDS and ("video" in msg_data or "audio" in msg_data or "voice" in msg_data or "animation" in msg_data):
                             threading.Thread(target=broadcast_forward_process, args=(chat_id, chat_id, message_id)).start()
                             continue
 
-                        # User Screenshot Slip (Live Chat & Check Status System)
                         if "photo" in msg_data and int(chat_id) not in ADMIN_IDS and chat_id not in ADMIN_IDS:
                             file_id = msg_data["photo"][-1]["file_id"]
-                            
-                            # ဘေးကင်းအောင် စာလုံးအချို့ ဖယ်ရှားရှင်းလင်းရန်
                             clean_name = first_name.replace("_", "").replace("-", "")
                             
                             check_keyboard = {
@@ -346,7 +340,6 @@ def bot_polling():
                                 ]
                             }
                             
-                            # အက်ဒမင်အားလုံးဆီ ပို့ဆောင်ခြင်း
                             for current_admin in ADMIN_IDS:
                                 try:
                                     admin_target = int(current_admin)
@@ -361,7 +354,6 @@ def bot_polling():
                                 except Exception as e:
                                     print(f"Error sending to admin {current_admin}: {e}", flush=True)
                                     
-                            # Owner (လူကြီးမင်း) ဆီသို့ပါ သီးသန့် ကွက်တိရောက်ရှိစေရန်
                             if int(OWNER_ID) not in ADMIN_IDS and OWNER_ID not in ADMIN_IDS:
                                 try:
                                     payload_owner = {
@@ -378,7 +370,6 @@ def bot_polling():
                             send_message(chat_id, f"📥 <b>{first_name}</b> ရေ... သင်၏ ငွေလွှဲစလစ်ပုံကို လက်ခံရရှိပါပြီ။ Admin မှ စစ်ဆေးပြီး ပရီမီယမ်ကုဒ် လာပေးပါလိမ့်မည်။ ခေတ္တစောင့်ဆိုင်းပေးပါဦးဗျာ...")
                             continue 
                             
-                        # 📩 Admin မှ Reply ပြန်လျှင် Customer ဆီသို့ စာလှမ်းပို့ပေးမည့် စနစ်
                         if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and "reply_to_message" in msg_data:
                             reply_to = msg_data["reply_to_message"]
                             if "caption" in reply_to and "Chat ID:" in reply_to["caption"]:
@@ -407,7 +398,6 @@ def bot_polling():
                         if "text" in msg_data:
                             text = msg_data["text"].strip()
                             
-                            # 🤝 ၁။ Admin မှ Reseller အသစ်ထည့်သွင်းခြင်း (/add_agent [Chat_ID])
                             if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and text.startswith("/add_agent "):
                                 try:
                                     target_id = text.split()[1].strip()
@@ -424,7 +414,6 @@ def bot_polling():
                                     send_message(chat_id, "❌ ပုံစံမှားနေပါသည်။ ဥပမာ- <code>/add_agent 12345678</code>")
                                 continue
 
-                            # 🔗 ၂။ Reseller သမားများ ကိုယ်ပိုင် Link ထုတ်ယူခြင်း (/link)
                             if text == "/link":
                                 db = load_data()
                                 if str(chat_id) in db["resellers"]:
@@ -444,7 +433,6 @@ def bot_polling():
                                     send_message(chat_id, "❌ သင်သည် စနစ်ထဲတွင် Reseller (အေးဂျင့်) မဟုတ်ပါ။")
                                 continue
 
-                            # 🔑 ၃။ အက်ဒမင်များ ကုဒ်ထုတ်ခြင်း (/gen week [အရေအတွက်])
                             if (chat_id in ADMIN_IDS or int(chat_id) == OWNER_ID) and text.startswith("/gen"):
                                 parts = text.split()
                                 if len(parts) < 2 or parts[1].lower() not in ["week", "month", "year"]:
@@ -481,7 +469,6 @@ def bot_polling():
                                     send_message(OWNER_ID, f"🔔 <b>ကုဒ်ထုတ်ခွင့် တောင်းခံလာပါသည်!</b>\n\n👤 <b>အေးဂျင့် ID:</b> <code>{chat_id}</code>\n⏱️ <b>သက်တမ်း:</b> <b>{duration_type.upper()}</b>\n📦 <b>အရေအတွက်:</b> <code>{count}</code> ခု\n\n👉 ဤတောင်းခံမှုကို ခွင့်ပြုမလားဗျာ?", reply_markup=approve_keyboard)
                                 continue
 
-                            # 🎁 ၄။ အသုံးပြုသူများ ကုဒ်ပြန်လည်အသုံးပြုခြင်း + Reseller 10% ခွဲဝေခြင်း စနစ်သစ်
                             if text.startswith("/redeem "):
                                 user_code = text.replace("/redeem ", "", 1).strip()
                                 db = load_data()
@@ -489,10 +476,9 @@ def bot_polling():
                                 if user_code in db.get("active_codes", {}):
                                     dtype = db["active_codes"][user_code]
                                     
-                                    # 💰 ဈေးနှုန်းအလိုက် 10% ကော်မရှင် တွက်ချက်ခြင်း
                                     code_prices = {"week": 300, "month": 1000, "year": 10000}
                                     code_value = code_prices.get(dtype, 1000)
-                                    commission = int(code_value * 0.10) # 10% Auto Commission
+                                    commission = int(code_value * 0.10)
                                     
                                     now = time.time()
                                     current_prem, current_expire = is_premium(chat_id)
@@ -506,14 +492,12 @@ def bot_polling():
                                     db["premium_users"][str(chat_id)] = new_expire
                                     del db["active_codes"][user_code]
                                     
-                                    # 💸 Reseller ထံသို့ 10% ကော်မရှင် အော်တို ခွဲဝေပေးခြင်း
                                     referrer_id = db["user_referrals"].get(str(chat_id))
                                     if referrer_id and str(referrer_id) in db["resellers"]:
                                         ref_str = str(referrer_id)
                                         db["reseller_wallets"][ref_str] = db["reseller_wallets"].get(ref_str, 0) + commission
                                         total_wallet = db["reseller_wallets"][ref_str]
                                         
-                                        # Reseller ထံသို့ သတင်းစကားလှမ်းပို့ခြင်း
                                         ref_msg = (
                                             f"💰 <b>ကော်မရှင်အသစ် ရရှိပါသည်!</b>\n\n"
                                             f"👤 ဝယ်သူ: <b>{first_name}</b> (@{username})\n"
@@ -546,7 +530,6 @@ def bot_polling():
                                     threading.Thread(target=broadcast_forward_process, args=(chat_id, chat_id, message_id)).start()
                                 continue
 
-                            # 🕴️ အေးဂျင့် သို့မဟုတ် အက်ဒမင်များအတွက် သီးသန့် ID ထုတ်ပေးရန် Command
                             if text.lower() == '/agent' or text.lower() == '/admin':
                                 agent_msg = (
                                     f"👑 <b>Agent/Admin Dashboard Setup</b>\n\n"
@@ -557,23 +540,19 @@ def bot_polling():
                                 send_message(chat_id, agent_msg)
                                 continue
 
-                            # 👥 ၅။ Start Message နှုတ်ဆက်ခြင်းနှင့် နာမည်ခေါ်ခြင်း၊ Referral မှတ်သားခြင်း
                             if text.startswith('/start'):
                                 db = load_data()
-                                
-                                # မိတ်ဆက်လင့်ခ်မှ တဆင့် ဝင်လာခြင်း ဟုတ်/မဟုတ် စစ်ဆေးခြင်း
                                 if len(text.split()) > 1:
                                     start_param = text.split()[1]
                                     if start_param.startswith("R_"):
                                         inviter_id = start_param.replace("R_", "", 1)
-                                        # အကယ်၍ ဤဝယ်သူသည် ယခင်က ဘယ်သူ့လူမှ မဟုတ်သေးလျှင် ယခု ဖိတ်ခေါ်သူ၏ လူအဖြစ် မှတ်သားမည်
                                         if str(chat_id) not in db["user_referrals"]:
                                             db["user_referrals"][str(chat_id)] = inviter_id
                                             save_data(db)
                                 
                                 welcome_msg = (
                                     f"👋 <b>{first_name}</b> ရေ... <b>Video Downloader ဘော့မှ လှိုက်လှဲစွာ ကြိုဆိုပါသည်!</b>\n\n"
-                                    f"Facebook နှင့် TikTok ဗီဒီယိုလင့်ခ်များကို ပို့ပေးရုံဖြင့် တိုက်ရိုက်ဒေါင်းလုဒ်ဆွဲနိုင်ပါသည်။\n\n"
+                                    f"Facebook, YouTube, TikTok, Instagram နှင့် အခြား Social Media လင့်ခ်များအားလုံးကို တိုက်ရိုက်ဒေါင်းလုဒ်ဆွဲနိုင်ပါသည်။\n\n"
                                     f"🎫 <b>ပရီမီယမ်ကုဒ်ရှိပါက -</b> <code>/redeem မိမိကုဒ်</code> ဟုရိုက်ထည့်ပါ။\n"
                                     f"━━━━━━━━━━━━━━━━━━━━\n"
                                     f"🎬 Free အသုံးပြုသူများ (240p):\n• (၅) မိနစ်အောက် ဗီဒီယိုတိုများကို အခမဲ့ အကန့်အသတ်မရှိ ရယူနိုင်ပါသည်။\n\n"
@@ -591,7 +570,8 @@ def bot_polling():
                                 send_message(chat_id, f"📊 <b>ဘော့အခြေအနေ:</b>\n\n• စုစုပေါင်းအသုံးပြုသူ: <code>{total}</code> ဦး\n• လက်ရှိ Premium အသုံးပြုသူ: <code>{prem_count}</code> ဦး")
                                 continue
 
-                            elif text.startswith("http://") or text.startswith("https://"):
+                            # 🌟 [ကမ္ဘာသုံး စနစ်သစ်] မည်သည့် Social Media လင့်ခ်ပဲ လာလာ အကုန်ဖမ်းယူအလုပ်လုပ်ပေးမည့် အပိုင်း
+                            elif text.startswith("http://") or text.startswith("https://") or any(domain in text for domain in ["instagram.com", "facebook.com", "fb.watch", "youtu.be", "youtube.com", "tiktok.com", "x.com", "twitter.com", "threads.net"]):
                                 duration = get_video_duration(text)
                                 prem_status, _ = is_premium(chat_id)
                                 
@@ -603,7 +583,7 @@ def bot_polling():
                                     msg = (
                                         f"⚠️ <b>{first_name}</b>... <b>Free ဗားရှင်းတွင် (၅) မိနစ်အောက် ဗီဒီယိုများကိုသာ ခွင့်ပြုပါသည်။</b>\n\n"
                                         f"💎 သက်တမ်းအလိုက် ပရီမီယမ်ဝယ်ယူရန် Ngwe လွှဲပေးပါဦးဗျာ။\n"
-                                        f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latta)\n"
+                                        f"• KPay နံပါတ်: <code>09784732943</code> (U Tun Tun Latt)\n"
                                         f"• ၁ ပတ် - ၃၀၀၀ ကျပ် | ၁ လ - ၅၀၀၀ | ၁ နှစ်စာ ၄၅၀၀0 ကျပ်\n\n"
                                         f"👉 Ngwe လွှဲပြီး စလစ်ပုံကို ဤနေရာသို့ ပို့ပေးပါ။ Admin မှ ပရီမီယမ်ကုဒ် ပေးပါလိမ့်မည်။"
                                     )
@@ -632,4 +612,3 @@ if __name__ == '__main__':
     threading.Thread(target=bot_polling, daemon=True).start()
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run(app, host="0.0.0.0", port=port)
-
