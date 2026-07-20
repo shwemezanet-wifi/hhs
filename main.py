@@ -136,7 +136,6 @@ def get_video_duration(video_url):
     ydl_opts = {
         'quiet': True, 
         'nocheckcertificate': True,
-        'cookiefile':'cookies.txt',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'extractor_args': {'instagram': {'check_embed': True}},
         'add_header': [
@@ -167,7 +166,6 @@ def raw_download_process(chat_id, video_url, target_quality, status_msg_id):
         'timeout': 90,
         'nocheckcertificate': True,
         'quiet': True,
-        'cookiefile': 'cookies.txt',
         'merge_output_format': 'mp4',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'extractor_args': {'instagram': {'check_embed': True}},
