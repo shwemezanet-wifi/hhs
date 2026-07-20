@@ -19,13 +19,13 @@ sys.stdout.reconfigure(line_buffering=True)
 
 app = FastAPI()
 
-# --- Configurations (လုံခြုံရေးအတွက် Environment Variables သုံးရန် အဆင့်မြှင့်ထားပါသည်) ---
+# --- Configurations ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8887542224:AAHvmusig10GJT0R5ndT1M8QFWEvQcVcvjo")
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 SERVER_URL = "https://hhs-zlhu.onrender.com" 
 
-OWNER_ID = 8391123176  # လူကြီးမင်း (Owner) ရဲ့ ID
-ADMIN_IDS = [6622954461]  # အက်ဒမင် ID များ
+OWNER_ID = 8391123176  
+ADMIN_IDS = [6622954461]  
 
 DEFAULT_AD = "📢 <b>[ကြော်ငြာ]</b> မင်္ဂလာပါ"
 
@@ -94,7 +94,6 @@ def health_check():
 
 @app.get("/get_file/{file_name}")
 def get_file(file_name: str):
-    # လုံခြုံရေးအရ Directory Traversal (../) ကာကွယ်ရန်
     safe_name = os.path.basename(file_name)
     file_path = os.path.join(DOWNLOAD_DIR, safe_name)
     if os.path.exists(file_path):
@@ -149,13 +148,28 @@ def get_video_duration(video_url):
             return info.get('duration', 0)
     except: return 0
 
+# --- TikTok Watermark ဖယ်ရှားရန် Helper Function ---
+def get_clean_video_url(video_url):
+    if "tiktok.com" in video_url:
+        try:
+            api_url = f"https://www.tikwm.com/api/?url={video_url}"
+            res = requests.get(api_url, timeout=10).json()
+            if res.get("code") == 0 and "play" in res.get("data", {}):
+                return res["data"]["play"]
+        except Exception as e:
+            print(f"TikTok Clean Link Error: {e}", flush=True)
+    return video_url
+
 def raw_download_process(chat_id, video_url, target_quality, status_msg_id):
+    # TikTok Link ဖြစ်ပါက ရေစာမပါသော Link သို့ လှဲပြောင်းမည်
+    download_target_url = get_clean_video_url(video_url)
+
     if target_quality == "720p":
-        format_selector = "bestvideo[height<=720]+bestaudio/best"
+        format_selector = "bestvideo[height<=720]+bestaudio/best[height<=720]/best"
     elif target_quality == "480p":
-        format_selector = "bestvideo[height<=480]+bestaudio/best"
+        format_selector = "bestvideo[height<=480]+bestaudio/best[height<=480]/best"
     else:
-        format_selector = "worst/worstvideo+worstaudio/best"
+        format_selector = "worstvideo+worstaudio/worst/best"
         
     file_id = f"video_{chat_id}_{int(time.time())}.mp4"
     filename = os.path.join(DOWNLOAD_DIR, file_id)
@@ -168,16 +182,19 @@ def raw_download_process(chat_id, video_url, target_quality, status_msg_id):
         'quiet': True,
         'merge_output_format': 'mp4',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'extractor_args': {'instagram': {'check_embed': True}},
+        'extractor_args': {
+            'instagram': {'check_embed': True},
+            'youtube': {'player_client': ['android', 'web']}
+        },
         'add_header': [
-            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language: en-US,en;q=0.9'
         ]
     }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([video_url])
+            ydl.download([download_target_url])
         if os.path.exists(filename):
             file_size_mb = os.path.getsize(filename) / (1024 * 1024)
             db = load_data()
@@ -267,7 +284,6 @@ def bot_polling():
                             download_queue.put((chat_id, v_url, selected_q, msg_id))
                             continue
 
-                        # 🤝 Owner Auto-Join Agent Callback System (တိုက်ရိုက်ခွင့်ပြုရန်ခလုတ်)
                         if cb_data.startswith("join_agent_"):
                             applicant_id = cb_data.split("_")[2]
                             db = load_data()
@@ -539,14 +555,12 @@ def bot_polling():
                                     threading.Thread(target=broadcast_forward_process, args=(chat_id, chat_id, message_id)).start()
                                 continue
 
-                            # 📲 ဝင်လိုသူက /agent ဟုရိုက်လျှင် Owner ထံသို့ တိုက်ရိုက် Request လှမ်းပို့ပေးမည့် စနစ်အသစ်
                             if text.lower() == '/agent' or text.lower() == '/admin':
                                 db = load_data()
                                 if str(chat_id) in db.get("resellers", []):
                                     send_message(chat_id, "⚠️ သင်သည် စနစ်ထဲတွင် Reseller (အေးဂျင့်) အဖြစ် ရှိနှင့်ပြီးသား ဖြစ်ပါတယ်ဗျာ။ ကိုယ်ပိုင်လင့်ခ်ထုတ်ရန် `/link` ဟု ရိုက်ပါ။")
                                     continue
                                     
-                                # User ကို အကြောင်းကြားစာ ပို့ခြင်း
                                 agent_msg = (
                                     f"👑 <b>Agent Request Sent!</b>\n\n"
                                     f"<b>{first_name}</b> ရေ... လူကြီးမင်း၏ အေးဂျင့်ဝင်လိုကြောင်း တောင်းဆိုချက်နှင့် Chat ID (<code>{chat_id}</code>) ကို ပိုင်ရှင် (Owner) ထံသို့ ဘော့ကနေ **တိုက်ရိုက် ပို့ဆောင်ပေးလိုက်ပါပြီ။**\n\n"
@@ -554,7 +568,6 @@ def bot_polling():
                                 )
                                 send_message(chat_id, agent_msg)
                                 
-                                # Owner ထံသို့ တိုက်ရိုက် Request ခလုတ်နှင့်တကွ လှမ်းပို့ခြင်း
                                 join_keyboard = {
                                     "inline_keyboard": [
                                         [{"text": "✅ တိုက်ရိုက် အေးဂျင့်အဖြစ် ခွင့်ပြုမည်", "callback_data": f"join_agent_{chat_id}"}]
@@ -609,6 +622,7 @@ def bot_polling():
                                     send_message(chat_id, f"⚠️ <b>{first_name}</b>... ဆာဗာလုံခြုံရေးအရ (၁) နာရီထက် ပိုရှည်သော ဗီဒီယိုများကို ဒေါင်းလုဒ်ဆွဲခွင့် မပြုသေးပါ။")
                                     continue
 
+                                # Free အသုံးပြုသူများအတွက် (၅) မိနစ် = စက္ကန့် ၃၀၀ ထက် ပိုပါက ပိတ်ဆို့ထားပါသည်
                                 if not prem_status and duration > 300:
                                     msg = (
                                         f"⚠️ <b>{first_name}</b>... <b>Free ဗားရှင်းတွင် (၅) မိနစ်အောက် ဗီဒီယိုများကိုသာ ခွင့်ပြုပါသည်။</b>\n\n"
